@@ -13,6 +13,15 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+/*
+    Interfaces to a heavily modified air conditioner running 
+    https://github.com/andy16666/simplicity-ac-firmware
+
+    Author: Andrew Somerville <andy16666@gmail.com> 
+    GitHub: andy16666
+ */
+
+
 #pragma once
 #include <Arduino.h> 
 #include <sys/_intsup.h>

@@ -22,16 +22,17 @@
 
 #pragma once
 #include "SerialUSB.h"
+#include <Arduino.h>
+#include <DS18B20.h>
 #include <sys/_types.h>
 #include <sys/_stdint.h>
-#include <Arduino.h>
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <map>
 #include <string>
 #include <float.h>
 #include <stdint.h>
-#include "DS18B20.h"
+
 // #define NDEBUG
 #include <cassert>
 
@@ -129,19 +130,16 @@ namespace AOS
         return true; 
       };
 
-      char * toString()
+      String toString()
       {
         char buffer[1024];
         sprintf(buffer, "{ \"name\":\"%s\", \"shortAddress\":\"%d\" }", name.c_str(), shortAddress);
-        int allocChars = strlen(buffer) + 1; 
-        char *formattedString = (char *)malloc(allocChars * sizeof(char)); 
-        strcpy(formattedString, buffer); 
-        return formattedString;
+        return String(buffer); 
       };
 
       static String addressToString(uint8_t *address)
       {
-        String addressString; 
+        String addressString = ""; 
         for (int i = 0; i < ADDRESS_LENGTH; i++)
         {
           if (i > 0) addressString += ":";

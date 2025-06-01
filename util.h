@@ -15,15 +15,16 @@
 
 
 /*
-    Utilities for coding on the pi pico. 
+    Utilities for coding on the Pi Pico. 
 
     Author: Andrew Somerville <andy16666@gmail.com> 
     GitHub: andy16666
  */
 
 #pragma once
+#include <Arduino.h> 
 #include <stdint.h> 
 
-char *msToHumanReadableTime(long timeMs); 
+String msToHumanReadableTime(long timeMs); 
 uint32_t getTotalHeap(void);
 uint32_t getFreeHeap(void); 

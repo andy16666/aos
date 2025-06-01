@@ -64,8 +64,6 @@ namespace AOS
       unsigned long getLastUpdatedSetpointMs() const; 
       unsigned long getLastUpdatedCurrentTempMs() const; 
       unsigned long getLastUpdatedCommandMs() const; 
-    
-      
   };
 
   class Thermostats 
@@ -81,6 +79,6 @@ namespace AOS
       bool contains(char *name);
       Thermostat& get(std::string name);
       Thermostat& get(char * name);
-      char *toString();
+      String toString();
   };
 }

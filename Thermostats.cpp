@@ -158,40 +158,33 @@ Thermostat& Thermostats::get(char * name)
   return this->m[nameStr];
 }
 
-char* Thermostats::toString() 
+String Thermostats::toString() 
 {
   char buffer[1024];
 
   sprintf(buffer, "\n   [\n");
   int i = 0;
-  for (const auto &[n, t] : this->m) {
+  for (const auto &[n, t] : this->m) 
+  {
     if (i++ != 0)
       sprintf(buffer + strlen(buffer), ",\n");
     
     sprintf(buffer + strlen(buffer), "    ");
 
     unsigned long timeMs = millis(); 
-    char *lastUpdatedCommandStr = msToHumanReadableTime(timeMs - t.getLastUpdatedCommandMs()); 
-    char *lastUpdatedSetpointStr = msToHumanReadableTime(timeMs - t.getLastUpdatedSetpointMs()); 
-    char *lastUpdatedCurrentTempStr = msToHumanReadableTime(timeMs - t.getLastUpdatedCurrentTempMs()); 
     sprintf(
         buffer + strlen(buffer), 
         THERMOSTAT_FORMAT_STRING,
         t.getName().c_str(),
         t.getSetPointC(),
-        lastUpdatedSetpointStr,
+        msToHumanReadableTime(timeMs - t.getLastUpdatedSetpointMs()).c_str(),
         t.getCurrentTemperatureC(),
-        lastUpdatedCurrentTempStr,
+        msToHumanReadableTime(timeMs - t.getLastUpdatedCurrentTempMs()).c_str(),
         t.getCommand() ? 1 : 0,
-        lastUpdatedCommandStr
+        msToHumanReadableTime(timeMs - t.getLastUpdatedCommandMs()).c_str()
       );
-    free (lastUpdatedCommandStr); 
-    free (lastUpdatedCurrentTempStr); 
-    free (lastUpdatedSetpointStr); 
   }
   sprintf(buffer + strlen(buffer), "\n   ]");
 
-  char *formattedThermostats = (char *)malloc((strlen(buffer) + 1) * sizeof(char));
-  strcpy(formattedThermostats, buffer);
-  return formattedThermostats;
+  return String(buffer);
 }

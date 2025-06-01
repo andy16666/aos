@@ -14,7 +14,7 @@
  */
 
 /*
-    A simple RTOS thread kernel for the Pi Pico (W)
+    A simple real time thread kernel for the Pi Pico RP2040
 
     Author: Andrew Somerville <andy16666@gmail.com> 
     GitHub: andy16666

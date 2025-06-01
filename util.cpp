@@ -20,7 +20,7 @@
 #include <stdint.h> 
 #include <Arduino.h> 
 
-char *msToHumanReadableTime(long timeMs)
+String msToHumanReadableTime(long timeMs)
 {
   char buffer[1024]; 
 
@@ -45,11 +45,7 @@ char *msToHumanReadableTime(long timeMs)
     sprintf(buffer, "%5.2fd", timeMs / (24.0 * 60.0 * 60.0 * 1000.0));
   }
 
-  int allocChars = strlen(buffer) + 1; 
-  char *formattedString = (char *)malloc(allocChars * sizeof(char)); 
-  strcpy(formattedString, buffer); 
-
-  return formattedString; 
+  return String(buffer); 
 }
 
 uint32_t getTotalHeap(void) 

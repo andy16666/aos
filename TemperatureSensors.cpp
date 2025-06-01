@@ -13,18 +13,19 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <streambuf>
-#include "TemperatureSensors.h"
 #include <Arduino.h>
+#include <DS18B20.h>
 #include <cstddef>
 #include <string.h>
 #include <string>
 #include <map>
+#include <streambuf>
 #include <stdio.h>
 #include <float.h>
 #include "Thermostats.h"
 #include "util.h"
-#include "DS18B20.h"
+
+#include "TemperatureSensors.h"
 
 using namespace AOS; 
 using namespace std;
@@ -34,18 +35,15 @@ using AOS::TemperatureSensors;
 
 bool TemperatureSensor::readTemp(DS18B20 ds)
 {
-  char *sensorString = toString(); 
   if (!hasAddress())
   {
-    Serial.printf("Sensor %s has not been discovered\r\n", sensorString); 
-    free(sensorString); 
+    Serial.printf("Sensor %s has not been discovered\r\n", toString().c_str()); 
     return false; 
   }
 
   if (!ds.select(address))
   {
-    Serial.printf("Sensor %s not found\r\n", sensorString); 
-    free(sensorString);
+    Serial.printf("Sensor %s not found\r\n", toString().c_str()); 
     return false; 
   }
 
@@ -61,9 +59,8 @@ bool TemperatureSensor::readTemp(DS18B20 ds)
   }
   else 
   {
-    Serial.printf("Sensor %s: TEMP ERROR %f %f\r\n", sensorString, reading1C, reading2C); 
+    Serial.printf("Sensor %s: TEMP ERROR %f %f\r\n", toString().c_str(), reading1C, reading2C); 
     tempErrors++; 
-    free(sensorString);
     return false; 
   }
 }
@@ -78,26 +75,22 @@ void TemperatureSensors::discoverSensors()
     if (has(shortAddress))
     {
       TemperatureSensor& sensor = get(shortAddress); 
-      char *sensorString = sensor.toString(); 
       if(!sensor.hasAddress())
       {
         sensor.setAddress(sensorAddress); 
-        //Serial.printf("Discovered %s\r\n", sensorString); 
+        //Serial.printf("Discovered %s\r\n", sensor.toString().c_str()); 
       }
       else if (!sensor.compareAddress(sensorAddress))
       {
         Serial.printf("ERROR: %s has conflicting address: %s vs %s\r\n", 
-            sensorString, TemperatureSensor::addressToString(sensor.getAddress()).c_str(), TemperatureSensor::addressToString(sensorAddress).c_str()); 
+            sensor.toString().c_str(), TemperatureSensor::addressToString(sensor.getAddress()).c_str(), TemperatureSensor::addressToString(sensorAddress).c_str()); 
       }
-      free(sensorString);
     }
     else 
     {
       TemperatureSensor sensor = TemperatureSensor(sensorAddress);
-      char *sensorString = sensor.toString(); 
-      Serial.printf("Discovered unexpected sensor: %s\r\n", sensorString); 
+      Serial.printf("Discovered unexpected sensor: %s\r\n", sensor.toString().c_str()); 
       add(sensor); 
-      free(sensorString);
     }
   }
 
@@ -105,9 +98,7 @@ void TemperatureSensors::discoverSensors()
   {
     if(!s.hasAddress())
     {
-      char *sensorString = s.toString(); 
-      Serial.printf("ERROR: sensor %s was not discovered.\r\n", sensorString); 
-      free(sensorString);
+      Serial.printf("ERROR: sensor %s was not discovered.\r\n", s.toString().c_str()); 
     }
   }
 }
@@ -117,8 +108,6 @@ void TemperatureSensors::printSensors()
 {
   for (auto &[sA, s] : this->m)
   {
-    char *sensorString = s.toString(); 
-    Serial.printf("%s\r\n", sensorString); 
-    free(sensorString);
+    Serial.printf("%s\r\n", s.toString().c_str()); 
   }
 }

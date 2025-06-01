@@ -13,6 +13,14 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
+/*
+    Simplifies operations controlling inductive loads using GPIO. 
+
+    Author: Andrew Somerville <andy16666@gmail.com> 
+    GitHub: andy16666
+ */
+
+
 #pragma once
 #include <Arduino.h>
 #include <sys/_intsup.h>
