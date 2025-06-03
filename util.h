@@ -25,6 +25,9 @@
 #include <Arduino.h> 
 #include <stdint.h> 
 
+static volatile long            timeBaseMs             __attribute__((section(".uninitialized_data")));
+
+void reboot(); 
 String msToHumanReadableTime(long timeMs); 
-uint32_t getTotalHeap(void);
-uint32_t getFreeHeap(void); 
+uint32_t getTotalHeap();
+uint32_t getFreeHeap(); 

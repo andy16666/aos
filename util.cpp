@@ -13,12 +13,18 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include "util.h"
+#include <Arduino.h> 
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h> 
-#include <Arduino.h> 
+#include "util.h"
+
+void reboot()
+{
+  timeBaseMs += millis(); 
+  rp2040.reboot(); 
+}
 
 String msToHumanReadableTime(long timeMs)
 {
@@ -48,14 +54,14 @@ String msToHumanReadableTime(long timeMs)
   return String(buffer); 
 }
 
-uint32_t getTotalHeap(void) 
+uint32_t getTotalHeap() 
 {
   extern char __StackLimit, __bss_end__;
 
   return &__StackLimit - &__bss_end__;
 }
 
-uint32_t getFreeHeap(void) 
+uint32_t getFreeHeap() 
 {
   struct mallinfo m = mallinfo();
 

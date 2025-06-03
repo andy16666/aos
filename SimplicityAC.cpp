@@ -11,7 +11,7 @@ using AOS::SimplicityACResponse;
 bool SimplicityAC::execute(String params)
 {
   HTTPClient httpClient; 
-  httpClient.setTimeout(1000); 
+  httpClient.setTimeout(5000); 
 
   char url[256]; 
 

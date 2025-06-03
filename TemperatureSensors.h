@@ -24,6 +24,7 @@
 #include "SerialUSB.h"
 #include <Arduino.h>
 #include <DS18B20.h>
+#include <Arduino_JSON.h>
 #include <sys/_types.h>
 #include <sys/_stdint.h>
 #include <sys/_intsup.h>
@@ -35,6 +36,8 @@
 
 // #define NDEBUG
 #include <cassert>
+
+static volatile long            tempErrors             __attribute__((section(".uninitialized_data")));
 
 using namespace std;
 
@@ -55,7 +58,8 @@ namespace AOS
     private:
       uint8_t shortAddress;
       uint8_t address[ADDRESS_LENGTH];
-      std::string name; 
+      String name; 
+      String jsonName; 
       float tempC; 
       bool read; 
       unsigned long lastReadMs;
@@ -63,9 +67,20 @@ namespace AOS
       
     public:
       TemperatureSensor() {}; 
-      TemperatureSensor(std::string name, uint8_t shortAddress)
+      TemperatureSensor(const char* name, uint8_t shortAddress)
       {
-        this->name = std::string(name); 
+        this->name = String(name); 
+        this->jsonName = String(name) + String(shortAddress); 
+        this->shortAddress = shortAddress; 
+        for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = 0; }
+        read = false; 
+        lastReadMs = 0; 
+      }; 
+
+      TemperatureSensor(const char* name, const char* jsonName, uint8_t shortAddress)
+      {
+        this->name = String(name); 
+        this->jsonName = String(jsonName); 
         this->shortAddress = shortAddress; 
         for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = 0; }
         read = false; 
@@ -76,11 +91,12 @@ namespace AOS
       {
         setAddress(address); 
         this->name = "Discovered"; 
+        this->jsonName = String(this->name) + String(shortAddress); 
         read = false; 
         lastReadMs = 0; 
       }; 
 
-      std::string getName()
+      String getName()
       {
         return name;
       };
@@ -103,7 +119,7 @@ namespace AOS
         return read && isTempCValid(tempC) && lastReadMs >= (millis() - TEMP_VALID_TIME_MS);
       };
 
-      void setName(std::string name)
+      void setName(String name)
       {
         this->name = name; 
       };
@@ -136,6 +152,21 @@ namespace AOS
         sprintf(buffer, "{ \"name\":\"%s\", \"shortAddress\":\"%d\" }", name.c_str(), shortAddress);
         return String(buffer); 
       };
+
+      String formatTempC()
+      {
+        return isTempValid() ? String(getTempC()) : String("-"); 
+      }
+
+      void addTo(const char* key, JSONVar& document) 
+      {
+        document[key][jsonName] = formatTempC(); 
+      }
+
+      void addTo(JSONVar& document) 
+      {
+        document[jsonName] = formatTempC(); 
+      }
 
       static String addressToString(uint8_t *address)
       {
@@ -198,14 +229,22 @@ namespace AOS
       }; 
 
       float getTempC(uint8_t a) { return has(a) && get(a).isTempValid() ? get(a).getTempC() : 0; };
-      String formatTempC(uint8_t a) { return has(a) && get(a).isTempValid() ? String(get(a).getTempC()) : String("-"); };
+      String formatTempC(uint8_t a) { return has(a) ? get(a).formatTempC() : String("-"); };
       TemperatureSensor& get(uint8_t shortAddress) { return m[shortAddress]; };
       bool has(uint8_t shortAddress) { return m.count(shortAddress); };
-      void add(std::string name, uint8_t shortAddress) 
+      
+      void add(const char * name, const char * jsonName, uint8_t shortAddress) 
+      {  
+        TemperatureSensor sensor(name, jsonName, shortAddress);
+        add(sensor);
+      }; 
+
+      void add(const char * name, uint8_t shortAddress) 
       {  
         TemperatureSensor sensor(name, shortAddress);
         add(sensor);
       }; 
+
       void add(TemperatureSensor& sensor) 
       {  
         m.insert({sensor.getShortAddress(), sensor}); 
@@ -229,5 +268,21 @@ namespace AOS
       }; 
 
       void printSensors(); 
+
+      void addTo(JSONVar& document) 
+      {
+        for (auto &[sA, s] : this->m)
+        {
+          s.addTo(document); 
+        }
+      }
+
+      void addTo(const char* key, JSONVar& document) 
+      {
+        for (auto &[sA, s] : this->m)
+        {
+          s.addTo(key, document); 
+        }
+      }
   };
 }

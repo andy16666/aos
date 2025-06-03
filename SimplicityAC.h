@@ -29,6 +29,7 @@
 #include <map>
 #include <string>
 #include <HTTPClient.h>
+#include "util.h"
 
 #define AC_DATA_EXPIRY_TIME_MS 30 * 1000
 #define AC_OUTLET_IDLE_MIN_TEMP_C 15
@@ -101,6 +102,11 @@ namespace AOS
         return isSet() && !isCommand(CMD_AC_KILL) && !isCommand(CMD_AC_OFF) && !isCommand(CMD_AC_FAN);
       };
 
+      fan_state_t getFanState()
+      {
+        return fanState; 
+      }
+
       bool isSet() { return updateTimeMs; };
       bool isExpired() { return !isSet() || updateTimeMs < millis() - AC_DATA_EXPIRY_TIME_MS; };
 
@@ -123,6 +129,17 @@ namespace AOS
 
       bool execute(String params); 
       bool execute() { return execute(String()); }; 
+
+      void addTo(const char* key, JSONVar& document) 
+      {
+        document[key]["evapTempC"] = evapTempC; 
+        document[key]["outletTempC"] = outletTempC; 
+        document[key]["lastUpdated"] = msToHumanReadableTime(millis() - updateTimeMs).c_str(); 
+        document[key]["command"] = String((char)command).c_str(); 
+        document[key]["state"] = String((char)state).c_str(); 
+        document[key]["fanState"] = String((char)fanState).c_str(); 
+        document[key]["compressorState"] = String((char)compressorState).c_str(); 
+      }
   }; 
 
   class SimplicityACResponse

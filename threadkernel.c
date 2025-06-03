@@ -66,8 +66,8 @@ void __threadkernel_run(threadkernel_t *k)
     runImmediate(k); 
     if (k->millis() >= process->nextRunMilliseconds)
     {
+      process->nextRunMilliseconds += process->periodMilliseconds;
       process->f(); 
-      process->nextRunMilliseconds = k->millis() + process->periodMilliseconds; 
     }
     
     process = process->next; 
