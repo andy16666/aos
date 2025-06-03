@@ -12,9 +12,6 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "threadkernel.h"
 
 threadkernel_t* create_threadkernel(unsigned long(*millis)()) {

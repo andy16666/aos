@@ -1,17 +1,12 @@
-#pragma once 
+#ifndef PING_H
+#define PING_H
 #include <sys/_intsup.h>
 #include <cstdlib>
+#include <stdint.h> 
+
 #include <Arduino.h> 
 #include <Arduino_JSON.h> 
-#include <stdint.h> 
 #include <WiFi.h>
-
-#define PING_INTERVAL_MS 5000
-#define MAX_CONSECUTIVE_FAILED_PINGS 5
-
-static volatile long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
-
-void task_testPing(); 
 
 namespace AOS
 {
@@ -24,7 +19,7 @@ namespace AOS
       int ttl; 
       
     public:
-      static AOS::PingStats stats; 
+      static PingStats stats; 
       static Ping pingGateway();
       static Ping pingIP(IPAddress ip);
 
@@ -108,3 +103,5 @@ namespace AOS
       };
   };
 }
+
+#endif

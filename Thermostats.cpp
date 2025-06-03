@@ -13,15 +13,8 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <Arduino.h>
-#include <cstddef>
-#include <string.h>
-#include <string>
-#include <map>
-#include <stdio.h>
-#include <float.h>
+
 #include "Thermostats.h"
-#include "util.h"
 
 #define THERMOSTAT_FORMAT_STRING "{ " \
     "\"name\":\"%s\", " \

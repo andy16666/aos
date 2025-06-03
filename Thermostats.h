@@ -25,6 +25,15 @@
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <cstddef>
+#include <string.h>
+#include <stdio.h>
+#include <float.h>
+
+#include <Arduino.h>
+#include <Arduino_JSON.h>
+
+#include "util.h"
 
 using namespace std;
 
@@ -61,6 +70,16 @@ namespace AOS
       bool coolingCalledFor();
       float getMagnitude(); 
 
+      void addTo(const char* key, JSONVar& document) 
+      {
+        document[key][name.c_str()]["setPointC"] = setPointC; 
+        document[key][name.c_str()]["setPointAge"] = msToHumanReadableTime(millis() - lastUpdatedSetpointMs); 
+        document[key][name.c_str()]["currentTempC"] = currentTemperatureC; 
+        document[key][name.c_str()]["currentAge"] = msToHumanReadableTime(millis() - lastUpdatedCurrentTempMs); 
+        document[key][name.c_str()]["command"] = command; 
+        document[key][name.c_str()]["commandAge"] = msToHumanReadableTime(millis() - lastUpdatedCommandMs); 
+      }
+
       unsigned long getLastUpdatedSetpointMs() const; 
       unsigned long getLastUpdatedCurrentTempMs() const; 
       unsigned long getLastUpdatedCommandMs() const; 
@@ -79,6 +98,14 @@ namespace AOS
       bool contains(char *name);
       Thermostat& get(std::string name);
       Thermostat& get(char * name);
+
+      void addTo(const char* key, JSONVar& document) 
+      {
+        for (auto &[sA, t] : this->m)
+        {
+          t.addTo(key, document); 
+        }
+      }
       String toString();
   };
 }

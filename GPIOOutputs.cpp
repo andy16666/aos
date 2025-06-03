@@ -13,10 +13,6 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-#include <Arduino.h>
-#include <cstddef>
-#include <map> 
-#include <string>
 #include "GPIOOutputs.h"
 
 using namespace std;

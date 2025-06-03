@@ -23,13 +23,18 @@
 
 
 #pragma once
-#include <Arduino.h> 
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <map>
 #include <string>
+
+#include <Arduino.h> 
+#include <Arduino_JSON.h> 
 #include <HTTPClient.h>
+
 #include "util.h"
+
+#include "TemperatureSensors.h"
 
 #define AC_DATA_EXPIRY_TIME_MS 30 * 1000
 #define AC_OUTLET_IDLE_MIN_TEMP_C 15
@@ -37,12 +42,17 @@
 
 // External command to the unit
 typedef enum {
+  // Off does a soft power down, switching to fan high->medium->low
   CMD_AC_OFF = '-',
+  // Each cool mode has different temperature ranges and fan speeds
   CMD_AC_COOL_HIGH = 'C',
   CMD_AC_COOL_MED  = 'M',
   CMD_AC_COOL_LOW  = 'L',
+  // Kill stops the AC unit completely, disaling the compressure and powering down the fan
   CMD_AC_KILL = 'K',
-  CMD_AC_FAN = 'F'
+  CMD_AC_FAN_HIGH = 'F',
+  CMD_AC_FAN_MED = 'm',
+  CMD_AC_FAN_LOW = 'l'
 } ac_cmd_t;
 
 // A/C state is changed based on the external command and the current state.
@@ -51,9 +61,9 @@ typedef enum {
   AC_COOL_HIGH = 'H',
   AC_COOL_MED  = 'M',
   AC_COOL_LOW  = 'L',
-  AC_STANDBY_HIGH = 'h',
-  AC_STANDBY_MED  = 'm',
-  AC_STANDBY_LOW  = 'l',
+  AC_STATE_FAN_HIGH = 'h',
+  AC_STATE_FAN_MED  = 'm',
+  AC_STATE_FAN_LOW  = 'l'
 } ac_state_t;
 
 typedef enum {
@@ -96,10 +106,11 @@ namespace AOS
 
       bool isCommand(ac_cmd_t command) { return isSet() && this->command == command; };
       bool isState(ac_state_t state) { return isSet() && this->state == state; }; 
+      bool isFanState(fan_state_t fanState) { return isSet() && this->fanState == fanState; }; 
 
       bool isCooling()
       {
-        return isSet() && !isCommand(CMD_AC_KILL) && !isCommand(CMD_AC_OFF) && !isCommand(CMD_AC_FAN);
+        return isCommand(CMD_AC_COOL_HIGH) || isCommand(CMD_AC_COOL_MED) || isCommand(CMD_AC_COOL_LOW);
       };
 
       fan_state_t getFanState()
@@ -114,6 +125,32 @@ namespace AOS
       {
         return isSet() && outletTempC < AC_OUTLET_IDLE_MIN_TEMP_C; 
       };
+
+      bool isFanRunning() 
+      {
+        return isFanState(AC_FAN_HIGH) || isFanState(AC_FAN_MED) || isFanState(AC_FAN_LOW); 
+      }
+
+      float getEvapTempC()
+      {
+        return evapTempC; 
+      }
+
+      bool isEvapTempValid()
+      { 
+        return TemperatureSensor::isTempCValid(evapTempC); 
+      }
+
+
+      float getOutletTempC() 
+      {
+        return outletTempC; 
+      }
+
+      bool isOutletTempValid()
+      { 
+        return TemperatureSensor::isTempCValid(outletTempC); 
+      }
 
       bool isEvapCold()
       {

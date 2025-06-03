@@ -21,25 +21,29 @@
  */
 
 #pragma once
-#include "SerialUSB.h"
-#include <Arduino.h>
-#include <DS18B20.h>
-#include <Arduino_JSON.h>
 #include <sys/_types.h>
 #include <sys/_stdint.h>
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <map>
 #include <string>
+#include <streambuf>
+#include <cstddef>
 #include <float.h>
 #include <stdint.h>
-
+#include <stdio.h>
+#include <string.h>
 // #define NDEBUG
 #include <cassert>
 
-static volatile long            tempErrors             __attribute__((section(".uninitialized_data")));
+#include <Arduino.h>
+#include <DS18B20.h>
+#include <Arduino_JSON.h>
 
 using namespace std;
+
+double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
+double calculate_relative_humidity(double td, double tw);
 
 namespace AOS
 {
@@ -50,7 +54,7 @@ namespace AOS
   const unsigned long TEMP_EXPIRY_TIME_MS = 15000; 
   const unsigned long TEMP_VALID_TIME_MS = 60000; 
 
-  class TemperatureSensors; 
+  class TemperatureSensors;   
   class TemperatureSensor; 
 
   class TemperatureSensor
@@ -65,7 +69,10 @@ namespace AOS
       unsigned long lastReadMs;
       unsigned long tempErrors;  
       
+      
     public:
+      static inline const unsigned long READ_INTERVAL_MS = 5000; 
+
       TemperatureSensor() {}; 
       TemperatureSensor(const char* name, uint8_t shortAddress)
       {
@@ -227,7 +234,8 @@ namespace AOS
 
         this->discovered = discovered; 
       }; 
-
+      
+      bool isTempValid(uint8_t a) { return has(a) && get(a).isTempValid(); };
       float getTempC(uint8_t a) { return has(a) && get(a).isTempValid() ? get(a).getTempC() : 0; };
       String formatTempC(uint8_t a) { return has(a) ? get(a).formatTempC() : String("-"); };
       TemperatureSensor& get(uint8_t shortAddress) { return m[shortAddress]; };

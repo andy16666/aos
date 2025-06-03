@@ -22,12 +22,15 @@
  */
 
 #pragma once
-#include <Arduino.h> 
+#include <sys/_intsup.h>
+#include <cstdlib>
+#include <stdio.h>
+#include <string.h>
+#include <stdlib.h>
 #include <stdint.h> 
 
-static volatile long            timeBaseMs             __attribute__((section(".uninitialized_data")));
+#include <Arduino.h>
 
-void reboot(); 
 String msToHumanReadableTime(long timeMs); 
 uint32_t getTotalHeap();
 uint32_t getFreeHeap(); 

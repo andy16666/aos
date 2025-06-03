@@ -1,7 +1,3 @@
-
-
-#include <Arduino.h> 
-#include <Arduino_JSON.h> 
 #include "SimplicityAC.h"
 
 using namespace AOS; 
@@ -15,7 +11,7 @@ bool SimplicityAC::execute(String params)
 
   char url[256]; 
 
-  if (params.length() == 0)
+  if (params.length() > 0)
   {
     sprintf(url, "http://%s.local/%s", this->hostname.c_str(), params.c_str());
   }

@@ -22,11 +22,14 @@
 
 
 #pragma once
-#include <Arduino.h>
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <string>
 #include <map>
+#include <cstddef>
+
+#include <Arduino.h>
+
 
 using namespace std; 
 

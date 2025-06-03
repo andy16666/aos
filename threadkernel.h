@@ -23,8 +23,11 @@
 #define THREADKRNEL_HH
 #define threadkernel_t struct threadkernel_t_t
 #define process_t struct process_t_t
-#include<sys/types.h>
-#include<stdint.h>
+#include <sys/types.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Constructor 
 threadkernel_t* create_threadkernel(unsigned long (*millis)());

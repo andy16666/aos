@@ -12,26 +12,41 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
-
-#include <Arduino.h>
-#include <DS18B20.h>
-#include <cstddef>
-#include <string.h>
-#include <string>
-#include <map>
-#include <streambuf>
-#include <stdio.h>
-#include <float.h>
-#include "Thermostats.h"
-#include "util.h"
-
 #include "TemperatureSensors.h"
+#include <math.h>
 
 using namespace AOS; 
 using namespace std;
 
 using AOS::TemperatureSensor; 
 using AOS::TemperatureSensors; 
+
+double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity) {
+    double rh = relative_humidity;
+    double T = dry_bulb_temp;
+    
+    double Tw = T * atan(0.151977 * sqrt(rh + 8.313659)) + atan(T + rh) - atan(rh - 1.676331) + 0.00391838 * pow(rh, 1.5) * atan(0.023101 * rh) - 4.686035;
+    
+    return Tw;
+}
+
+// https://www.1728.org/relhum.htm
+double calculate_relative_humidity(double td, double tw) 
+{        
+    double N = 0.6687451584; 
+    double ed = 6.112 * exp((17.502 * td) / (240.97 + td)); 
+    double ew = 6.112 * exp((17.502 * tw) / (240.97 + tw));
+
+    if (ed <= 0)
+      return 0; 
+
+    double rh = (
+      ( ew - N * (1+ 0.00115 * tw) * (td - tw) ) 
+      / ed ) 
+        * 100.0; 
+
+    return rh; 
+}
 
 bool TemperatureSensor::readTemp(DS18B20 ds)
 {

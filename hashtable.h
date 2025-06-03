@@ -21,6 +21,9 @@
 #define hashtable_node_t struct hashtable_node_t_t
 #include<sys/types.h>
 #include<stdint.h>
+#include <string.h>
+#include <stdio.h>
+#include <stdlib.h>
 
 // Constructor 
 hashtable_t* create_hashtable(int store_size);

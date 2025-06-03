@@ -1,21 +1,9 @@
 #include "Ping.h"
-#include "util.h"
+#include "config.h"
 
 using namespace AOS; 
 using AOS::PingStats; 
 using AOS::Ping; 
-
-void task_testPing()
-{
-  Ping ping = Ping::pingGateway(); 
-
-  if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
-  {
-    Serial.println("Gateway unresponsive, rebooting.");
-    numRebootsPingFailed++; 
-    reboot(); 
-  }
-}
 
 PingStats Ping::stats = PingStats(); 
 

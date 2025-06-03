@@ -15,9 +15,6 @@
 
 // Hashtable with external chaining and arbitrary keys. 
 // Author: Andrew Somerville 
-#include <string.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include "hashtable.h"
 
 hashtable_t* create_hashtable(int store_size) {
