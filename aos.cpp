@@ -1,5 +1,20 @@
+/*
+ * This program is free software: you can redistribute it and/or modify it 
+ * under the terms of the GNU General Public License as published by the 
+ * Free Software Foundation, either version 3 of the License, or (at your 
+ * option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but 
+ * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY 
+ * or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General Public License for 
+ * more details.
+ * 
+ * You should have received a copy of the GNU General Public License along 
+ * with this program. If not, see <https://www.gnu.org/licenses/>.
+ */
 #include "aos.h"
 #include "config.h"
+#include "util.h"
 
 using namespace AOS; 
 using AOS::Ping; 
@@ -17,7 +32,10 @@ volatile long            numRebootsPingFailed   __attribute__((section(".uniniti
 threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis); 
 threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis); 
 
-const char* HOSTNAME = generateHostname(); 
+const char* HOSTNAME = generateHostname();
+
+String LOADING_STRING = String("Loading..."); 
+String& httpResponseString = LOADING_STRING;
 
 void setup() 
 {
@@ -60,6 +78,7 @@ void setup1()
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 2000);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 
   TEMPERATURES.discoverSensors();
@@ -73,6 +92,28 @@ void loop()
 void loop1()
 {
   CORE_1_KERNEL->run(CORE_1_KERNEL); 
+}
+
+void task_updateHttpResponse() 
+{
+  JSONVar document; 
+  
+  TEMPERATURES.addTo(document); 
+  document["cpuTempC"] = cpu.getTemperature(); 
+  document["tempErrors"] = tempErrors; 
+
+  populateHttpResponse(document); 
+  
+  Ping::stats.addStats("ping", document); 
+  document["ping"]["numRebootsPingFailed"] = numRebootsPingFailed; 
+
+  document["freeHeapB"] = getFreeHeap(); 
+
+  document["uptime"]["powered"] = msToHumanReadableTime((timeBaseMs + millis()) - powerUpTime).c_str();
+  document["uptime"]["booted"] = msToHumanReadableTime(millis() - startupTime).c_str();
+  document["uptime"]["connected"] = msToHumanReadableTime(millis() - connectTime).c_str();
+  
+  httpResponseString = document.stringify(document); 
 }
 
 void task_core0ActOn()  { digitalWrite(CORE_0_ACT, 1); }
