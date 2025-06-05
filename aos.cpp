@@ -12,9 +12,16 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+
+ /*
+   
+    Author: Andrew Somerville <andy16666@gmail.com> 
+    GitHub: andy16666
+ */
 #include "aos.h"
 #include "config.h"
 #include "util.h"
+#include "RPi_Pico_TimerInterrupt.h"
 
 using namespace AOS; 
 using AOS::Ping; 
@@ -22,12 +29,25 @@ using AOS::Ping;
 TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN);
 CPU cpu = CPU(); 
 
-volatile long            initialize             __attribute__((section(".uninitialized_data")));
-volatile long            powerUpTime            __attribute__((section(".uninitialized_data")));
-volatile long            numRebootsDisconnected __attribute__((section(".uninitialized_data")));
-volatile long            timeBaseMs             __attribute__((section(".uninitialized_data")));
-volatile long            tempErrors             __attribute__((section(".uninitialized_data")));
-volatile long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
+/* The following are located in uninitialized memory, and so are preserved across a reboot. */
+/*
+  Used to indicate if the system has just been powered on. If so, initialize will consist of 
+  uninitialized bits which are most likely not all zero. If the system has not been power cycled 
+  but has instead been rebooted, this will preserve its value of zero, indicating we can also 
+  trust the rest of the data in uninitialized memory. 
+*/ 
+volatile unsigned long            initialize             __attribute__((section(".uninitialized_data")));
+// Total time between power up and the last reboot. 
+volatile unsigned long            timeBaseMs             __attribute__((section(".uninitialized_data")));
+// Total time since power up. 
+volatile unsigned long            powerUpTime            __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            tempErrors             __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            numRebootsDisconnected __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsCore0WDT     __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsCore1WDT     __attribute__((section(".uninitialized_data")));
 
 threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis); 
 threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis); 
@@ -37,8 +57,40 @@ const char* HOSTNAME = generateHostname();
 String LOADING_STRING = String("Loading..."); 
 String& httpResponseString = LOADING_STRING;
 
+static volatile unsigned long core0AliveAt = millis(); 
+static volatile unsigned long core1AliveAt = millis();
+
+RPI_PICO_Timer aosWatchdogTimer0(0);
+RPI_PICO_Timer aosWatchdogTimer1(1);
+
+bool aosWatchdogISR(struct repeating_timer *t)
+{  
+  (void) t;
+
+  unsigned long time = millis(); 
+  if (core0AliveAt < time - AOS_WATCHDOG_TIMEOUT_MS)
+  {
+    numRebootsCore0WDT++; 
+    reboot(); 
+  }
+
+  if (core1AliveAt < time - AOS_WATCHDOG_TIMEOUT_MS)
+  {
+    numRebootsCore1WDT++; 
+    reboot(); 
+  }
+
+  return true; 
+}
+
 void setup() 
 {
+  Serial.begin(9600);
+  Serial.setDebugOutput(true);
+  cpu.begin(); 
+
+  pinMode(CORE_0_ACT, OUTPUT); 
+
   if (initialize)
   {
     timeBaseMs = 0; 
@@ -46,56 +98,71 @@ void setup()
     tempErrors = 0;    
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
+    numRebootsCore0WDT = 0; 
+    numRebootsCore1WDT = 0; 
     aosInitialize(); 
     initialize = 0; 
   }
 
-  pinMode(CORE_0_ACT, OUTPUT); 
-  pinMode(CORE_1_ACT, OUTPUT); 
-
-  cpu.begin(); 
-  
-  Serial.begin();
-  Serial.setDebugOutput(false);
+  if (!aosWatchdogTimer0.attachInterruptInterval(AOS_WATCHDOG_TIMEOUT_MS * 1000, aosWatchdogISR))
+  {
+    Serial.println("Failed to start core0 watchdog");
+    reboot(); 
+  }
 
   wifi_connect();
 
-  if (MDNS.begin(HOSTNAME)) 
+  if (!MDNS.begin(HOSTNAME))
   {
-    Serial.println("MDNS responder started");
+    Serial.println("Failed to start MDNS");
+    reboot(); 
   }
 
+  task_updateHttpResponse(); 
+
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 10000); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 5000); 
   aosSetup(); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 }
 
 void setup1()
 {
+  pinMode(CORE_1_ACT, OUTPUT); 
+
+  while(initialize) { delay(1000); }
+
+  if (!aosWatchdogTimer1.attachInterruptInterval(AOS_WATCHDOG_TIMEOUT_MS * 1000, aosWatchdogISR))
+  {
+    Serial.println("Failed to start core1 watchdog");
+    reboot(); 
+  }
+
+  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 2000);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
-
-  TEMPERATURES.discoverSensors();
 }
 
 void loop() 
 {
+  core0AliveAt = millis(); 
   CORE_0_KERNEL->run(CORE_0_KERNEL); 
 }
 
 void loop1()
 {
+  core1AliveAt = millis(); 
   CORE_1_KERNEL->run(CORE_1_KERNEL); 
 }
 
 void task_updateHttpResponse() 
 {
+  unsigned long time = millis(); 
   JSONVar document; 
   
   TEMPERATURES.addTo(document); 
@@ -105,14 +172,17 @@ void task_updateHttpResponse()
   populateHttpResponse(document); 
   
   Ping::stats.addStats("ping", document); 
-  document["ping"]["numRebootsPingFailed"] = numRebootsPingFailed; 
-
-  document["freeHeapB"] = getFreeHeap(); 
-
-  document["uptime"]["powered"] = msToHumanReadableTime((timeBaseMs + millis()) - powerUpTime).c_str();
-  document["uptime"]["booted"] = msToHumanReadableTime(millis() - startupTime).c_str();
-  document["uptime"]["connected"] = msToHumanReadableTime(millis() - connectTime).c_str();
   
+  document["freeHeapB"] = getFreeHeap(); 
+  document["uptime"]["powered"] = msToHumanReadableTime((timeBaseMs + time) - powerUpTime).c_str();
+  document["uptime"]["booted"] = msToHumanReadableTime(time - startupTime).c_str();
+  document["uptime"]["connected"] = msToHumanReadableTime(time - connectTime).c_str();
+  document["uptime"]["core0AliveAt"]   = msToHumanReadableTime(time - core0AliveAt).c_str();
+  document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
+  document["uptime"]["numRebootsCore0WDT"]   = numRebootsCore0WDT;
+  document["uptime"]["numRebootsCore1WDT"]   = numRebootsCore1WDT;
+  document["uptime"]["numRebootsPingFailed"] = numRebootsPingFailed; 
+
   httpResponseString = document.stringify(document); 
 }
 
@@ -135,7 +205,6 @@ void task_testWiFiConnection()
 {
   if (!is_wifi_connected()) 
   {
-    Serial.println("WiFi disconnected, rebooting.");
     numRebootsDisconnected++; 
     reboot();  
   }
@@ -147,12 +216,10 @@ void task_testPing()
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
   {
-    Serial.println("Gateway unresponsive, rebooting.");
     numRebootsPingFailed++; 
     reboot(); 
   }
 }
-
 
 bool is_wifi_connected() 
 {
@@ -162,9 +229,6 @@ bool is_wifi_connected()
 void wifi_connect() 
 {
   WiFi.noLowPowerMode();
-  Serial.print("Connecting to ");
-  Serial.println(WIFI_SSID);
-
   WiFi.mode(WIFI_STA);
   WiFi.noLowPowerMode();
   WiFi.begin(WIFI_SSID, WIFI_PASS);
@@ -175,8 +239,8 @@ void wifi_connect()
     delay(1000);
   }
 
-  if (!is_wifi_connected()) {
-    Serial.print("Connect failed! Rebooting.");
+  if (!is_wifi_connected()) 
+  {
     numRebootsDisconnected++; 
     reboot(); 
   }

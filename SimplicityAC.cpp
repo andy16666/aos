@@ -13,10 +13,29 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 #include "SimplicityAC.h"
+#include <FreeRTOS.h>
+#include <semphr.h> 
 
 using namespace AOS; 
 using AOS::SimplicityAC; 
 using AOS::SimplicityACResponse; 
+
+SimplicityACResponse EMPTY_RESPONSE("", -1, millis()); 
+SimplicityACResponse& responseRef = EMPTY_RESPONSE;
+
+void SimplicityAC::parse()
+{ 
+  Serial.println("SimplicityAC::parse();"); 
+  if(responseRef.isOK() && responseRef.hasPayload())
+  {
+    responseRef.parse(this);  
+  }
+}
+
+bool SimplicityAC::hasUnparsedResponse()
+{
+  return responseRef.getTime() != EMPTY_RESPONSE.getTime(); 
+}
 
 bool SimplicityAC::execute(String params)
 {
@@ -35,77 +54,91 @@ bool SimplicityAC::execute(String params)
   }
 
   if (httpClient.begin(url)) {  // HTTP
-    SimplicityACResponse response(url, httpClient.GET()); 
+    responseRef = SimplicityACResponse(url, httpClient.GET(), millis()); 
 
-    if (response.isOK())
+    if (responseRef.isOK())
     {
-      response.setPayload(httpClient.getString());
-      Serial.printf("%s: %d\r\n", url, response.getCode());
-      response.parse(*this);
+      responseRef.setPayload(httpClient.getString());
+      Serial.printf("%s: %d\r\n", url, responseRef.getCode());
+      httpClient.end(); 
+      return true; 
     }
-    else if (response.isInternalServerError())
+    else if (responseRef.isInternalServerError())
     {
-      response.setPayload(httpClient.getString());
-      Serial.printf("%s: %d: %s\r\n", url, response.getCode(), response.getPayload().c_str());
+      responseRef.setPayload(httpClient.getString());
+      Serial.printf("%s: %d: %s\r\n", url, responseRef.getCode(), responseRef.getPayload().c_str());
+      httpClient.end(); 
+      return false; 
     }
     else 
     {
-      Serial.printf("HTTP ERROR: %s: %d\r\n", url, response.getCode());
+      Serial.printf("HTTP ERROR: %s: %d\r\n", url, responseRef.getCode());
+      httpClient.end(); 
+      return false; 
     }
-    httpClient.end(); 
-    return response.isOK(); 
+    
   }
   else 
   {
     Serial.printf("%s: %s\r\n", url, "Failed to initialize HTTP client.");
+    httpClient.end(); 
     return false;  
   }
 }
 
-void SimplicityACResponse::parse(SimplicityAC& acData)
+void SimplicityACResponse::parse(SimplicityAC* acData)
 {
-  JSONVar acOutput = JSON.parse(payload);
+  JSONVar acOutput = JSON.parse(getPayload().c_str());
 
   if (JSON.typeof(acOutput) == "undefined")
   {
     Serial.println("Parsing input failed!");
+    return; 
   }
   else
   {
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("evapTempC"))
     {
-      acData.evapTempC = atoff(acOutput["evapTempC"]);
+      acData->evapTempC = atoff(acOutput["evapTempC"]);
     }
 
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("outletTempC"))
     {
-      acData.outletTempC = atoff(acOutput["outletTempC"]);
+      acData->outletTempC = atoff(acOutput["outletTempC"]);
     }
 
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("command"))
     {
       String command = acOutput["command"]; 
-      acData.command = static_cast<ac_cmd_t>(command.c_str()[0]);
+      acData->command = static_cast<ac_cmd_t>(command.c_str()[0]);
     }
 
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("state"))
     {
       String state = acOutput["state"]; 
-      acData.state = static_cast<ac_state_t>(state.c_str()[0]);
+      acData->state = static_cast<ac_state_t>(state.c_str()[0]);
     }
 
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("fanState"))
     {
       String fanState = acOutput["fanState"]; 
-      acData.fanState = static_cast<fan_state_t>(fanState.c_str()[0]);
+      acData->fanState = static_cast<fan_state_t>(fanState.c_str()[0]);
     }
 
+    Serial.println("Parsing "); 
     if (acOutput.hasOwnProperty("compressorState"))
     {
       String compressorState = acOutput["compressorState"]; 
-      acData.compressorState = static_cast<compressor_state_t>(compressorState.c_str()[0]);
+      acData->compressorState = static_cast<compressor_state_t>((int)(compressorState.c_str()[0]));
     }
 
-    acData.updateTimeMs = millis(); 
+    Serial.println("Parsed ac payload"); 
+    acData->setSet(true); 
+    acData->updateTimeMs = getTime(); 
   }
 }

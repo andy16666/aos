@@ -15,6 +15,33 @@
 
 #include "util.h"
 
+double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity) {
+    double rh = relative_humidity;
+    double T = dry_bulb_temp;
+    
+    double Tw = T * atan(0.151977 * sqrt(rh + 8.313659)) + atan(T + rh) - atan(rh - 1.676331) + 0.00391838 * pow(rh, 1.5) * atan(0.023101 * rh) - 4.686035;
+    
+    return Tw;
+}
+
+// https://www.1728.org/relhum.htm
+double calculate_relative_humidity(double td, double tw) 
+{        
+    double N = 0.6687451584; 
+    double ed = 6.112 * exp((17.502 * td) / (240.97 + td)); 
+    double ew = 6.112 * exp((17.502 * tw) / (240.97 + tw));
+
+    if (ed <= 0)
+      return 0; 
+
+    double rh = (
+      ( ew - N * (1+ 0.00115 * tw) * (td - tw) ) 
+      / ed ) 
+        * 100.0; 
+
+    return rh; 
+}
+
 String msToHumanReadableTime(long timeMs)
 {
   char buffer[1024]; 

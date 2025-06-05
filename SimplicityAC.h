@@ -78,6 +78,8 @@ typedef enum {
   AC_COMPRESSOR_ON
 } compressor_state_t;
 
+
+
 namespace AOS 
 {
   class SimplicityAC
@@ -90,8 +92,9 @@ namespace AOS
       fan_state_t fanState;
       compressor_state_t compressorState;  
       unsigned long updateTimeMs; 
-      String hostname; 
-
+      String hostname;
+      bool set;
+      
       SimplicityAC(String hostname)
       {
         this->evapTempC = 0; 
@@ -102,11 +105,15 @@ namespace AOS
         this->compressorState = AC_COMPRESSOR_OFF; 
         this->state = AC_POWER_OFF; 
         this->hostname = hostname; 
+        this->set = false; 
       }
 
       bool isCommand(ac_cmd_t command) { return isSet() && this->command == command; };
       bool isState(ac_state_t state) { return isSet() && this->state == state; }; 
       bool isFanState(fan_state_t fanState) { return isSet() && this->fanState == fanState; }; 
+
+      void parse();
+      bool hasUnparsedResponse();
 
       bool isCooling()
       {
@@ -118,7 +125,9 @@ namespace AOS
         return fanState; 
       }
 
-      bool isSet() { return updateTimeMs; };
+      void setSet(bool set) { this->set = set; }; 
+
+      bool isSet() { return set; };
       bool isExpired() { return !isSet() || updateTimeMs < millis() - AC_DATA_EXPIRY_TIME_MS; };
 
       bool isOutletCold()
@@ -140,7 +149,6 @@ namespace AOS
       { 
         return TemperatureSensor::isTempCValid(evapTempC); 
       }
-
 
       float getOutletTempC() 
       {
@@ -185,14 +193,23 @@ namespace AOS
       int code; 
       String payload; 
       String url; 
+      unsigned long time; 
 
     public: 
-      SimplicityACResponse(String url, int code) 
+      SimplicityACResponse(String url, int code, unsigned long time) 
       {
         this->code = code; 
         payload = String(); 
         this->url = url; 
+        this->time = time; 
       }; 
+
+      unsigned long getTime() { return time; }; 
+
+      bool hasPayload()
+      {
+        return payload.length() > 0; 
+      };
 
       void setPayload(String payload) 
       {
@@ -200,10 +217,10 @@ namespace AOS
         this->payload = payload; 
       }; 
 
-      void parse(SimplicityAC& ac); 
+      void parse(SimplicityAC* ac); 
       String getPayload() { return payload; }; 
       int getCode() { return code; }; 
       bool isOK() { return code == HTTP_CODE_OK; }
-      bool isInternalServerError() { return code == HTTP_CODE_OK; }
+      bool isInternalServerError() { return code == HTTP_CODE_INTERNAL_SERVER_ERROR; }
   }; 
 }

@@ -19,8 +19,6 @@
     Author: Andrew Somerville <andy16666@gmail.com> 
     GitHub: andy16666
  */
-
-
 #pragma once
 #include <sys/_intsup.h>
 #include <cstdlib>
@@ -29,7 +27,6 @@
 #include <cstddef>
 
 #include <Arduino.h>
-
 
 using namespace std; 
 
@@ -73,7 +70,6 @@ namespace AOS
       void add(GPIOOutput& outputPin);
       void add(std::string name, pin_size_t pin, bool activeHigh) 
       {
-        Serial.printf("Add output %s %d %d\r\n", name.c_str(), pin, activeHigh); 
         GPIOOutput output(name, pin, activeHigh); 
         add(output); 
       };

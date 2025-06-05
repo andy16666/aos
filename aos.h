@@ -12,8 +12,25 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+
+ /*
+   
+    Author: Andrew Somerville <andy16666@gmail.com> 
+    GitHub: andy16666
+ */
 #ifndef AOS_H
 #define AOS_H
+#include <FreeRTOS.h> 
+#include <semphr.h> 
+#include <Arduino.h>
+#include <OneWire.h>
+#include <Arduino_JSON.h>
+#include <HTTPClient.h>
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <CPU.h>
+#include <LEAmDNS.h>
+
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <stdint.h> 
@@ -21,13 +38,7 @@
 #include <math.h>
 #include <string.h>
 
-#include <Arduino.h>
-#include <Arduino_JSON.h>
-#include <HTTPClient.h>
-#include <WiFi.h>
-#include <WiFiClient.h>
-#include <CPU.h>
-#include <LEAmDNS.h>
+
 
 #include "TemperatureSensors.h"
 #include "Ping.h"
@@ -36,8 +47,9 @@
 #define TEMP_SENSOR_PIN 2
 #define CORE_0_ACT   18
 #define CORE_1_ACT   19
-#define PING_INTERVAL_MS 5000
+#define PING_INTERVAL_MS 30000
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
+#define AOS_WATCHDOG_TIMEOUT_MS 60000
 
 extern "C" {
 #include <threadkernel.h>
@@ -47,15 +59,20 @@ extern AOS::TemperatureSensors TEMPERATURES;
 extern CPU cpu; 
 extern String& httpResponseString; 
 
-extern volatile long            initialize             ;
-extern volatile long            powerUpTime            ;
-extern volatile long            numRebootsDisconnected ;
-extern volatile long            timeBaseMs             ;
-extern volatile long            tempErrors             ;
-extern volatile long            numRebootsPingFailed   ;
+extern volatile unsigned long            initialize             ;
+extern volatile unsigned long            powerUpTime            ;
+extern volatile unsigned long            numRebootsDisconnected ;
+extern volatile unsigned long            timeBaseMs             ;
+extern volatile unsigned long            tempErrors             ;
+extern volatile unsigned long            numRebootsPingFailed   ;
 
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
+
+//extern SemaphoreHandle_t networkMutex;
+
+//bool networkMutexTryAcquire();
+//void networkMutexRelease();
 
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;
@@ -83,5 +100,11 @@ void task_mdnsUpdate();
 void wifi_connect();
 bool is_wifi_connected();
 void task_testWiFiConnection(); 
+
+uint32_t getTotalHeap();
+uint32_t getFreeHeap(); 
+
+
+
 
 #endif

@@ -42,8 +42,7 @@
 
 using namespace std;
 
-double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
-double calculate_relative_humidity(double td, double tw);
+extern volatile unsigned long            tempErrors             ;
 
 namespace AOS
 {
@@ -66,12 +65,10 @@ namespace AOS
       String jsonName; 
       float tempC; 
       bool read; 
-      unsigned long lastReadMs;
-      unsigned long tempErrors;  
-      
+      unsigned long lastReadMs;      
       
     public:
-      static inline const unsigned long READ_INTERVAL_MS = 5000; 
+      static inline const unsigned long READ_INTERVAL_MS = 10000; 
 
       TemperatureSensor() {}; 
       TemperatureSensor(const char* name, uint8_t shortAddress)
@@ -266,7 +263,7 @@ namespace AOS
       { 
         for (auto &[sA, s] : this->m)
         {
-          if (!s.isTempValid())
+          if (!s.hasAddress() || !s.isRead() || !s.isTempValid())
           {
             return false; 
           }

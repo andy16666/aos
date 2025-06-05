@@ -99,6 +99,19 @@ namespace AOS
       Thermostat& get(std::string name);
       Thermostat& get(char * name);
 
+      bool isCurrent() 
+      { 
+        for (auto &[sA, s] : this->m)
+        {
+          if (!s.isCurrent())
+          {
+            return false; 
+          }
+        }
+
+        return true; 
+      }; 
+
       void addTo(const char* key, JSONVar& document) 
       {
         for (auto &[sA, t] : this->m)

@@ -28,9 +28,10 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h> 
+#include <math.h> 
 
 #include <Arduino.h>
 
+double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
+double calculate_relative_humidity(double td, double tw);
 String msToHumanReadableTime(long timeMs); 
-uint32_t getTotalHeap();
-uint32_t getFreeHeap(); 
