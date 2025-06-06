@@ -112,6 +112,49 @@ namespace AOS
         return true; 
       }; 
 
+      bool coolingCalledFor() 
+      { 
+        for (auto &[sA, s] : this->m)
+        {
+          if (s.coolingCalledFor())
+          {
+            return true; 
+          }
+        }
+
+        return false; 
+      }; 
+
+      bool heatCalledFor() 
+      { 
+        for (auto &[sA, s] : this->m)
+        {
+          if (s.heatCalledFor())
+          {
+            return true; 
+          }
+        }
+
+        return false; 
+      }; 
+
+      double getMaxCoolingMagnitude() 
+      { 
+        if (!coolingCalledFor())
+          return 0; 
+        
+        float maxMagnitude = 0; 
+        for (auto &[sA, s] : this->m)
+        {
+          if (s.coolingCalledFor() && s.getMagnitude() > maxMagnitude)
+          {
+            maxMagnitude = s.getMagnitude(); 
+          }
+        }
+
+        return maxMagnitude; 
+      }; 
+
       void addTo(const char* key, JSONVar& document) 
       {
         for (auto &[sA, t] : this->m)

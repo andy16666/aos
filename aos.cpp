@@ -63,6 +63,8 @@ static volatile unsigned long core1AliveAt = millis();
 RPI_PICO_Timer aosWatchdogTimer0(0);
 RPI_PICO_Timer aosWatchdogTimer1(1);
 
+SemaphoreHandle_t networkMutex;
+
 bool aosWatchdogISR(struct repeating_timer *t)
 {  
   (void) t;
@@ -88,6 +90,8 @@ void setup()
   Serial.begin(9600);
   Serial.setDebugOutput(true);
   cpu.begin(); 
+
+  networkMutex = xSemaphoreCreateRecursiveMutex();
 
   pinMode(CORE_0_ACT, OUTPUT); 
 
@@ -118,8 +122,6 @@ void setup()
     reboot(); 
   }
 
-  task_updateHttpResponse(); 
-
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 10000); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
@@ -132,14 +134,11 @@ void setup1()
 {
   pinMode(CORE_1_ACT, OUTPUT); 
 
-  while(initialize) { delay(1000); }
-
   if (!aosWatchdogTimer1.attachInterruptInterval(AOS_WATCHDOG_TIMEOUT_MS * 1000, aosWatchdogISR))
   {
     Serial.println("Failed to start core1 watchdog");
     reboot(); 
   }
-
   
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
@@ -164,7 +163,7 @@ void task_updateHttpResponse()
 {
   unsigned long time = millis(); 
   JSONVar document; 
-  
+
   TEMPERATURES.addTo(document); 
   document["cpuTempC"] = cpu.getTemperature(); 
   document["tempErrors"] = tempErrors; 
@@ -183,7 +182,12 @@ void task_updateHttpResponse()
   document["uptime"]["numRebootsCore1WDT"]   = numRebootsCore1WDT;
   document["uptime"]["numRebootsPingFailed"] = numRebootsPingFailed; 
 
+  if (xSemaphoreTakeRecursive( networkMutex, portTICK_PERIOD_MS * 10 ) != pdTRUE)
+  {
+    return; 
+  }
   httpResponseString = document.stringify(document); 
+  xSemaphoreGiveRecursive(networkMutex); 
 }
 
 void task_core0ActOn()  { digitalWrite(CORE_0_ACT, 1); }

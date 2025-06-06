@@ -69,7 +69,7 @@ extern volatile unsigned long            numRebootsPingFailed   ;
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
 
-//extern SemaphoreHandle_t networkMutex;
+extern SemaphoreHandle_t networkMutex;
 
 //bool networkMutexTryAcquire();
 //void networkMutexRelease();

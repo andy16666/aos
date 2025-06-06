@@ -29,7 +29,7 @@
 #include <string>
 
 #include <Arduino.h> 
-#include <Arduino_JSON.h> 
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 
 #include "util.h"
@@ -113,7 +113,6 @@ namespace AOS
       bool isFanState(fan_state_t fanState) { return isSet() && this->fanState == fanState; }; 
 
       void parse();
-      bool hasUnparsedResponse();
 
       bool isCooling()
       {
@@ -219,6 +218,8 @@ namespace AOS
 
       void parse(SimplicityAC* ac); 
       String getPayload() { return payload; }; 
+      void setTime(unsigned long time) { this->time = time; }; 
+      void setCode(int code) { this->code = code; }
       int getCode() { return code; }; 
       bool isOK() { return code == HTTP_CODE_OK; }
       bool isInternalServerError() { return code == HTTP_CODE_INTERNAL_SERVER_ERROR; }

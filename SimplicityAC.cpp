@@ -20,25 +20,56 @@ using namespace AOS;
 using AOS::SimplicityAC; 
 using AOS::SimplicityACResponse; 
 
-SimplicityACResponse EMPTY_RESPONSE("", -1, millis()); 
-SimplicityACResponse& responseRef = EMPTY_RESPONSE;
+volatile SimplicityACResponse* responseRef = 0; 
+
+SemaphoreHandle_t acDataMutex = xSemaphoreCreateRecursiveMutex();
 
 void SimplicityAC::parse()
 { 
   Serial.println("SimplicityAC::parse();"); 
-  if(responseRef.isOK() && responseRef.hasPayload())
+  
+  if (!responseRef)
   {
-    responseRef.parse(this);  
+    Serial.println("SimplicityAC::parse() returning before lock"); 
+    return; 
   }
-}
 
-bool SimplicityAC::hasUnparsedResponse()
-{
-  return responseRef.getTime() != EMPTY_RESPONSE.getTime(); 
+  Serial.println("SimplicityAC::parse() getting lock"); 
+  if(xSemaphoreTakeRecursive( acDataMutex, portTICK_PERIOD_MS * 1 ) != pdTRUE)
+  {
+    Serial.println("SimplicityAC::parse() returning failed to lock"); 
+    return;
+  }
+
+  if (!responseRef)
+  {
+    Serial.println("SimplicityAC::parse() returning under lock"); 
+    xSemaphoreGiveRecursive( acDataMutex );
+    return; 
+  }
+
+  SimplicityACResponse *response = (SimplicityACResponse*)responseRef; 
+  responseRef = nullptr; 
+  xSemaphoreGiveRecursive( acDataMutex );
+
+  Serial.println("SimplicityAC::parse() checking response"); 
+  if(response->isOK() && response->hasPayload())
+  {
+    Serial.println("SimplicityAC::parse() parsing"); 
+    response->parse(this);  
+  }
+
+  Serial.println("SimplicityAC::parse() deleting"); 
+  delete response; 
 }
 
 bool SimplicityAC::execute(String params)
 {
+  if (responseRef != nullptr)
+  {
+    return true; 
+  }
+
   HTTPClient httpClient; 
   httpClient.setTimeout(5000); 
 
@@ -53,92 +84,63 @@ bool SimplicityAC::execute(String params)
     sprintf(url, "http://%s.local/", this->hostname.c_str());
   }
 
-  if (httpClient.begin(url)) {  // HTTP
-    responseRef = SimplicityACResponse(url, httpClient.GET(), millis()); 
+  bool success = false; 
 
-    if (responseRef.isOK())
+  if (httpClient.begin(url)) 
+  { 
+    SimplicityACResponse *response = new SimplicityACResponse(url, httpClient.GET(), millis()); 
+
+    if (response->isOK())
     {
-      responseRef.setPayload(httpClient.getString());
-      Serial.printf("%s: %d\r\n", url, responseRef.getCode());
-      httpClient.end(); 
-      return true; 
+      response->setPayload(httpClient.getString());
+      Serial.printf("%s: %d %s\r\n", url, response->getCode(), response->getPayload().c_str());
+      success = true; 
     }
-    else if (responseRef.isInternalServerError())
+    else if (response->isInternalServerError())
     {
-      responseRef.setPayload(httpClient.getString());
-      Serial.printf("%s: %d: %s\r\n", url, responseRef.getCode(), responseRef.getPayload().c_str());
-      httpClient.end(); 
-      return false; 
+      response->setPayload(httpClient.getString());
+      Serial.printf("%s: %d: %s\r\n", url, response->getCode(), response->getPayload().c_str());
     }
     else 
     {
-      Serial.printf("HTTP ERROR: %s: %d\r\n", url, responseRef.getCode());
-      httpClient.end(); 
-      return false; 
+      Serial.printf("HTTP ERROR: %s: %d\r\n", url, response->getCode());
     }
-    
+
+    while (xSemaphoreTakeRecursive( acDataMutex, portTICK_PERIOD_MS * 1 ) != pdTRUE ) 
+    {
+      Serial.println("SimplicityAC::execute(String params) waiting"); 
+    }
+
+    responseRef = (volatile SimplicityACResponse*)response; 
+
+    xSemaphoreGiveRecursive( acDataMutex );
   }
   else 
   {
     Serial.printf("%s: %s\r\n", url, "Failed to initialize HTTP client.");
-    httpClient.end(); 
-    return false;  
   }
+
+  return success; 
 }
 
 void SimplicityACResponse::parse(SimplicityAC* acData)
 {
-  JSONVar acOutput = JSON.parse(getPayload().c_str());
+  JsonDocument acOutput; 
+  deserializeJson(acOutput, getPayload().c_str());
 
-  if (JSON.typeof(acOutput) == "undefined")
-  {
-    Serial.println("Parsing input failed!");
-    return; 
-  }
-  else
-  {
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("evapTempC"))
-    {
-      acData->evapTempC = atoff(acOutput["evapTempC"]);
-    }
+  String command = acOutput["command"]; 
+  String state = acOutput["state"]; 
+  String fanState = acOutput["fanState"]; 
+  String compressorState = acOutput["compressorState"]; 
 
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("outletTempC"))
-    {
-      acData->outletTempC = atoff(acOutput["outletTempC"]);
-    }
+  acData->evapTempC = atoff(acOutput["evapTempC"]);
+  acData->outletTempC = atoff(acOutput["outletTempC"]);
+  acData->command = static_cast<ac_cmd_t>(command.c_str()[0]);
+  acData->state = static_cast<ac_state_t>(state.c_str()[0]); 
+  acData->fanState = static_cast<fan_state_t>(fanState.c_str()[0]);
+  acData->compressorState = static_cast<compressor_state_t>((int)(compressorState.c_str()[0]));
 
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("command"))
-    {
-      String command = acOutput["command"]; 
-      acData->command = static_cast<ac_cmd_t>(command.c_str()[0]);
-    }
-
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("state"))
-    {
-      String state = acOutput["state"]; 
-      acData->state = static_cast<ac_state_t>(state.c_str()[0]);
-    }
-
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("fanState"))
-    {
-      String fanState = acOutput["fanState"]; 
-      acData->fanState = static_cast<fan_state_t>(fanState.c_str()[0]);
-    }
-
-    Serial.println("Parsing "); 
-    if (acOutput.hasOwnProperty("compressorState"))
-    {
-      String compressorState = acOutput["compressorState"]; 
-      acData->compressorState = static_cast<compressor_state_t>((int)(compressorState.c_str()[0]));
-    }
-
-    Serial.println("Parsed ac payload"); 
-    acData->setSet(true); 
-    acData->updateTimeMs = getTime(); 
-  }
+  Serial.println("Parsed ac payload"); 
+  acData->setSet(true); 
+  acData->updateTimeMs = getTime(); 
 }
