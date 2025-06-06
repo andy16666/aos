@@ -14,6 +14,9 @@
  */
 
  /*
+   A core RTOS library built on Arduino and FreeRTOS for HVAC controllers
+   for the Pi Pico W. This library uses core 0 for communication and core 1 
+   for controlling and monitoring. 
    
     Author: Andrew Somerville <andy16666@gmail.com> 
     GitHub: andy16666
