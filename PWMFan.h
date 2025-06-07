@@ -14,7 +14,7 @@
  */
 #pragma once
 #include <Arduino.h> 
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 #include <map>
 
 namespace AOS
@@ -87,7 +87,7 @@ namespace AOS
         analogWrite(pin, state >= OFF_BELOW ? state : 0.0); 
       };
 
-      void addTo(const char * key, JSONVar& document)
+      void addTo(const char * key, JsonDocument& document)
       {
         document[key][jsonName.c_str()]["command"] = command; 
         document[key][jsonName.c_str()]["state"] = state; 

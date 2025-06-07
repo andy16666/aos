@@ -19,7 +19,7 @@
 #include <stdint.h> 
 
 #include <Arduino.h> 
-#include <Arduino_JSON.h> 
+#include <ArduinoJson.h> 
 #include <WiFi.h>
 
 namespace AOS
@@ -72,7 +72,7 @@ namespace AOS
       PingStats();
       
       void update(AOS::Ping& ping); 
-      void addStats(const char* key, JSONVar& document);
+      void addStats(const char* key, JsonDocument& document);
       
       unsigned int getConsecutiveFailed()
       { 

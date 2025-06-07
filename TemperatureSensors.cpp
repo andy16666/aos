@@ -21,36 +21,34 @@ using namespace std;
 using AOS::TemperatureSensor; 
 using AOS::TemperatureSensors; 
 
-bool TemperatureSensor::readTemp(DS18B20 ds)
+bool TemperatureSensor::readTemp(DS18B20& ds)
 {
   if (!hasAddress())
   {
-    Serial.printf("Sensor %s has not been discovered\r\n", toString().c_str()); 
     return false; 
   }
 
   if (!ds.select(address))
   {
-    Serial.printf("Sensor %s not found\r\n", toString().c_str()); 
     return false; 
   }
 
   float reading1C = ds.getTempC(); 
-  float reading2C = ds.getTempC(); 
-  float diff = fabs(reading1C - reading2C); 
-  if (diff < 0.5 && isTempCValid(reading1C))
-  {
+  //float reading2C = ds.getTempC(); 
+  //float diff = fabs(reading1C - reading2C); 
+
+  //if (diff < 0.2 && isTempCValid(reading1C))
+  //{
     tempC = reading1C; 
     lastReadMs = millis(); 
-    this->read = true; 
+    read = true; 
     return true;
-  }
+  /*}
   else 
   {
-    Serial.printf("Sensor %s: TEMP ERROR %f %f\r\n", toString().c_str(), reading1C, reading2C); 
     tempErrors++; 
     return false; 
-  }
+  }*/
 }
 
 void TemperatureSensors::discoverSensors() 
@@ -60,13 +58,13 @@ void TemperatureSensors::discoverSensors()
     uint8_t sensorAddress[8];
     ds.getAddress(sensorAddress);
     uint8_t shortAddress = sensorAddress[7]; 
+    Serial.printf("Found %d::%s\r\n", shortAddress, TemperatureSensor::addressToString(sensorAddress).c_str()); 
     if (has(shortAddress))
     {
       TemperatureSensor& sensor = get(shortAddress); 
       if(!sensor.hasAddress())
       {
         sensor.setAddress(sensorAddress); 
-        //Serial.printf("Discovered %s\r\n", sensor.toString().c_str()); 
       }
       else if (!sensor.compareAddress(sensorAddress))
       {
@@ -77,9 +75,9 @@ void TemperatureSensors::discoverSensors()
     else 
     {
       TemperatureSensor sensor = TemperatureSensor(sensorAddress);
-      Serial.printf("Discovered unexpected sensor: %s\r\n", sensor.toString().c_str()); 
       add(sensor); 
     }
+    delay(100); 
   }
 
   for (auto &[sA, s] : this->m)
@@ -96,6 +94,7 @@ void TemperatureSensors::printSensors()
 {
   for (auto &[sA, s] : this->m)
   {
-    Serial.printf("%s\r\n", s.toString().c_str()); 
+    if (s.hasAddress() && s.isRead())
+      Serial.printf("%s: %s\r\n", s.toString().c_str(), s.formatTempC().c_str()); 
   }
 }

@@ -172,9 +172,9 @@ namespace AOS
       };
 
       bool execute(String params); 
-      bool execute() { return execute(String()); }; 
+      bool execute() { return execute(String("")); }; 
 
-      void addTo(const char* key, JSONVar& document) 
+      void addTo(const char* key, JsonDocument& document) 
       {
         document[key]["evapTempC"] = evapTempC; 
         document[key]["outletTempC"] = outletTempC; 
@@ -198,7 +198,7 @@ namespace AOS
       SimplicityACResponse(String url, int code, unsigned long time) 
       {
         this->code = code; 
-        payload = String(); 
+        payload = String(""); 
         this->url = url; 
         this->time = time; 
       }; 
@@ -223,5 +223,16 @@ namespace AOS
       int getCode() { return code; }; 
       bool isOK() { return code == HTTP_CODE_OK; }
       bool isInternalServerError() { return code == HTTP_CODE_INTERNAL_SERVER_ERROR; }
+      void print()
+      {
+        if (hasPayload())
+        {
+          Serial.printf("\r[%d]%s: %d: %s\r\n", time, url.c_str(), getCode(), getPayload().c_str());
+        }
+        else 
+        {
+          Serial.printf("\r[%d]%s: %d\r\n", time, url.c_str(), getCode());
+        }
+      }
   }; 
 }

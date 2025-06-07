@@ -48,6 +48,11 @@ namespace AOS
       GPIOOutput() {}; 
       GPIOOutput(std::string name, pin_size_t pin, bool activeHigh);
 
+      void init() {
+        pinMode(pin, OUTPUT); 
+        execute(); 
+      }
+
       void setCommand(bool command);
       void execute();
       
@@ -81,6 +86,19 @@ namespace AOS
         if (has(pin))
           get(pin).setCommand(command); 
       };
+
+      void init()
+      {
+        for (auto &[pN, p] : this->m)
+        {
+          if(!p.isSet())
+          {
+            p.init(); 
+            delay(500);
+          }
+        }
+      }
+
       bool has(const pin_size_t p);
       GPIOOutput& get(const pin_size_t pin);
       std::string getName() const;

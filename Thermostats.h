@@ -31,7 +31,7 @@
 #include <float.h>
 
 #include <Arduino.h>
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 
 #include "util.h"
 
@@ -70,7 +70,7 @@ namespace AOS
       bool coolingCalledFor();
       float getMagnitude(); 
 
-      void addTo(const char* key, JSONVar& document) 
+      void addTo(const char* key, JsonDocument& document) 
       {
         document[key][name.c_str()]["setPointC"] = setPointC; 
         document[key][name.c_str()]["setPointAge"] = msToHumanReadableTime(millis() - lastUpdatedSetpointMs); 
@@ -155,7 +155,7 @@ namespace AOS
         return maxMagnitude; 
       }; 
 
-      void addTo(const char* key, JSONVar& document) 
+      void addTo(const char* key, JsonDocument& document) 
       {
         for (auto &[sA, t] : this->m)
         {

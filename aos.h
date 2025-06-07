@@ -27,7 +27,7 @@
 #include <semphr.h> 
 #include <Arduino.h>
 #include <OneWire.h>
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
@@ -41,8 +41,6 @@
 #include <math.h>
 #include <string.h>
 
-
-
 #include "TemperatureSensors.h"
 #include "Ping.h"
 
@@ -50,9 +48,10 @@
 #define TEMP_SENSOR_PIN 2
 #define CORE_0_ACT   18
 #define CORE_1_ACT   19
-#define PING_INTERVAL_MS 30000
+#define PING_INTERVAL_MS 10000
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
-#define AOS_WATCHDOG_TIMEOUT_MS 60000
+#define AOS_WATCHDOG_TIMEOUT_MS 30000
+#define HTTP_RESPONSE_BUFFER_SIZE 4096
 
 extern "C" {
 #include <threadkernel.h>
@@ -60,7 +59,7 @@ extern "C" {
 
 extern AOS::TemperatureSensors TEMPERATURES; 
 extern CPU cpu; 
-extern String& httpResponseString; 
+extern volatile char* httpResponseString; 
 
 extern volatile unsigned long            initialize             ;
 extern volatile unsigned long            powerUpTime            ;
@@ -74,9 +73,6 @@ volatile inline unsigned long connectTime = millis();
 
 extern SemaphoreHandle_t networkMutex;
 
-//bool networkMutexTryAcquire();
-//void networkMutexRelease();
-
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;
 
@@ -88,7 +84,7 @@ const char* generateHostname();
 void aosInitialize(); 
 void aosSetup(); 
 void aosSetup1();
-void populateHttpResponse(JSONVar &document);  
+void populateHttpResponse(JsonDocument &document);  
 
 void task_core0ActOn(); 
 void task_core1ActOn(); 
@@ -106,8 +102,5 @@ void task_testWiFiConnection();
 
 uint32_t getTotalHeap();
 uint32_t getFreeHeap(); 
-
-
-
 
 #endif

@@ -82,7 +82,7 @@ void PingStats::update(AOS::Ping& ping)
   }
 }
 
-void PingStats::addStats(const char* key, JSONVar& document)
+void PingStats::addStats(const char* key, JsonDocument& document)
 {
   document[key]["last"] = getLast(); 
   document[key]["average"] = getAverage(); 

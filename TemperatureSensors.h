@@ -38,7 +38,7 @@
 
 #include <Arduino.h>
 #include <DS18B20.h>
-#include <Arduino_JSON.h>
+#include <ArduinoJson.h>
 
 using namespace std;
 
@@ -50,12 +50,11 @@ namespace AOS
   const float MAX_TEMP_C = 120; 
   const float MIN_TEMP_C = -50;  
   const float INVALID_TEMP  = FLT_MIN;
-  const unsigned long TEMP_EXPIRY_TIME_MS = 15000; 
-  const unsigned long TEMP_VALID_TIME_MS = 60000; 
+  const unsigned long TEMP_EXPIRY_TIME_MS = 30000; 
+  const unsigned long TEMP_VALID_TIME_MS = 300 * 1000; 
 
   class TemperatureSensors;   
   class TemperatureSensor; 
-
   class TemperatureSensor
   {
     private:
@@ -68,7 +67,7 @@ namespace AOS
       unsigned long lastReadMs;      
       
     public:
-      static inline const unsigned long READ_INTERVAL_MS = 10000; 
+      static inline const unsigned long READ_INTERVAL_MS = 3000; 
 
       TemperatureSensor() {}; 
       TemperatureSensor(const char* name, uint8_t shortAddress)
@@ -105,7 +104,7 @@ namespace AOS
         return name;
       };
 
-      bool readTemp(DS18B20 ds); 
+      bool readTemp(DS18B20& ds); 
       bool isRead() { return read; };
       bool hasAddress() { return address[ADDRESS_LENGTH-1] == shortAddress; };
       uint8_t* getAddress() { return address; };
@@ -113,14 +112,14 @@ namespace AOS
       
       bool isTempExpired() 
       {
-        return !read || lastReadMs < (millis() - TEMP_EXPIRY_TIME_MS); 
+        return !read || lastReadMs < (millis() - TEMP_EXPIRY_TIME_MS);  
       };
 
       float getTempC() { return tempC; }; 
       
       bool isTempValid()
       {
-        return read && isTempCValid(tempC) && lastReadMs >= (millis() - TEMP_VALID_TIME_MS);
+        return read && isTempCValid(tempC);
       };
 
       void setName(String name)
@@ -130,6 +129,7 @@ namespace AOS
 
       void setAddress(uint8_t address[ADDRESS_LENGTH]) 
       {  
+        Serial.printf("Setting address of %d to %s", addressToString(address).c_str()); 
         shortAddress = address[ADDRESS_LENGTH-1]; 
         for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = address[i]; }
       };
@@ -162,12 +162,12 @@ namespace AOS
         return isTempValid() ? String(getTempC()) : String("-"); 
       }
 
-      void addTo(const char* key, JSONVar& document) 
+      void addTo(const char* key, JsonDocument& document) 
       {
         document[key][jsonName] = formatTempC(); 
       }
 
-      void addTo(JSONVar& document) 
+      void addTo(JsonDocument& document) 
       {
         document[jsonName] = formatTempC(); 
       }
@@ -185,9 +185,7 @@ namespace AOS
 
       static bool isTempCValid(float tempC) 
       {
-        return tempC != INVALID_TEMP
-          && tempC == tempC 
-          && tempC < MAX_TEMP_C 
+        return tempC < MAX_TEMP_C 
           && tempC > MIN_TEMP_C; 
       };
   };
@@ -207,29 +205,43 @@ namespace AOS
         discovered = false;
       }; 
 
-      void discoverSensors(); 
+      void discoverSensors();
+      
+      bool areDiscovered()
+      {
+        if (!this->discovered)
+        {
+          for (auto &[sA, s] : this->m)
+          {
+            if (!s.hasAddress())
+            {
+              return false; 
+            }
+          }
+
+          return true; 
+        }
+        else 
+        {
+          return true; 
+        }
+      }
 
       void readSensors() 
       {  
-        if (!this->discovered)
+        if (!areDiscovered())
         {
           discoverSensors(); 
         }
 
-        bool discovered = true; 
+        ds.doConversion(); 
         for (auto &[sA, s] : this->m)
         {
-          if (!s.hasAddress())
-          {
-            discovered = false; 
-          }
-          else if (!s.isTempValid() || s.isTempExpired())
+          if (s.hasAddress() && (!s.isRead() || s.isTempExpired()))
           {
             s.readTemp(ds); 
           }
         }
-
-        this->discovered = discovered; 
       }; 
       
       bool isTempValid(uint8_t a) { return has(a) && get(a).isTempValid(); };
@@ -263,7 +275,7 @@ namespace AOS
       { 
         for (auto &[sA, s] : this->m)
         {
-          if (!s.hasAddress() || !s.isRead() || !s.isTempValid())
+          if (!s.hasAddress())
           {
             return false; 
           }
@@ -274,7 +286,7 @@ namespace AOS
 
       void printSensors(); 
 
-      void addTo(JSONVar& document) 
+      void addTo(JsonDocument& document) 
       {
         for (auto &[sA, s] : this->m)
         {
@@ -282,7 +294,7 @@ namespace AOS
         }
       }
 
-      void addTo(const char* key, JSONVar& document) 
+      void addTo(const char* key, JsonDocument& document) 
       {
         for (auto &[sA, s] : this->m)
         {

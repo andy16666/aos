@@ -28,7 +28,6 @@ GPIOOutput::GPIOOutput(std::string name, pin_size_t pin, bool activeHigh)
   this->activeHigh = activeHigh; 
   this->command = false; 
   this->state = true; // Make sure the first set actually detects a delta.  
-  pinMode(pin, OUTPUT); 
 }
 
 pin_size_t GPIOOutput::getPin() const
@@ -91,7 +90,7 @@ void GPIOOutputs::setAll()
     if(!p.isSet())
     {
       p.execute(); 
-      delay(250);
+      delay(500);
     }
   }
 }

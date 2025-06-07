@@ -21,12 +21,11 @@
 #include "aos.h"
 #include "config.h"
 #include "util.h"
-#include "RPi_Pico_TimerInterrupt.h"
+//#include "RPi_Pico_TimerInterrupt.h"
 
 using namespace AOS; 
 using AOS::Ping; 
 
-TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN);
 CPU cpu = CPU(); 
 
 /* The following are located in uninitialized memory, and so are preserved across a reboot. */
@@ -54,47 +53,23 @@ threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis);
 
 const char* HOSTNAME = generateHostname();
 
-String LOADING_STRING = String("Loading..."); 
-String& httpResponseString = LOADING_STRING;
+volatile char* httpResponseString;
 
 static volatile unsigned long core0AliveAt = millis(); 
 static volatile unsigned long core1AliveAt = millis();
 
-RPI_PICO_Timer aosWatchdogTimer0(0);
-RPI_PICO_Timer aosWatchdogTimer1(1);
+volatile int core2Start = 0; 
+
+//RPI_PICO_Timer aosWatchdogTimer0(0);
+//RPI_PICO_Timer aosWatchdogTimer1(1);
 
 SemaphoreHandle_t networkMutex;
 
-bool aosWatchdogISR(struct repeating_timer *t)
-{  
-  (void) t;
-
-  unsigned long time = millis(); 
-  if (core0AliveAt < time - AOS_WATCHDOG_TIMEOUT_MS)
-  {
-    numRebootsCore0WDT++; 
-    reboot(); 
-  }
-
-  if (core1AliveAt < time - AOS_WATCHDOG_TIMEOUT_MS)
-  {
-    numRebootsCore1WDT++; 
-    reboot(); 
-  }
-
-  return true; 
-}
+TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN); 
 
 void setup() 
 {
-  Serial.begin(9600);
-  Serial.setDebugOutput(true);
-  cpu.begin(); 
-
-  networkMutex = xSemaphoreCreateRecursiveMutex();
-
-  pinMode(CORE_0_ACT, OUTPUT); 
-
+  //rp2040.idleOtherCore(); 
   if (initialize)
   {
     timeBaseMs = 0; 
@@ -108,61 +83,78 @@ void setup()
     initialize = 0; 
   }
 
-  if (!aosWatchdogTimer0.attachInterruptInterval(AOS_WATCHDOG_TIMEOUT_MS * 1000, aosWatchdogISR))
-  {
-    Serial.println("Failed to start core0 watchdog");
-    reboot(); 
-  }
-
+  Serial.begin();
+  Serial.setDebugOutput(false);
   wifi_connect();
+
+  networkMutex = xSemaphoreCreateRecursiveMutex();
+  httpResponseString = (volatile char *)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
+  httpResponseString[0] = 0;
+  
+ 
+  
+  cpu.begin(); 
+
+  pinMode(CORE_0_ACT, OUTPUT); 
+  pinMode(CORE_1_ACT, OUTPUT); 
+
+  
 
   if (!MDNS.begin(HOSTNAME))
   {
     Serial.println("Failed to start MDNS");
     reboot(); 
   }
-
-  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 10000); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
+  
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_mdnsUpdate, 1); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 109); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 100); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
   aosSetup(); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 110); 
+  //rp2040.resumeOtherCore(); 
+
+  core2Start = 1; 
 }
 
 void setup1()
 {
-  pinMode(CORE_1_ACT, OUTPUT); 
-
-  if (!aosWatchdogTimer1.attachInterruptInterval(AOS_WATCHDOG_TIMEOUT_MS * 1000, aosWatchdogISR))
-  {
-    Serial.println("Failed to start core1 watchdog");
-    reboot(); 
-  }
-  
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
+  while(!core2Start); 
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 100); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 2000);  
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 5000);  
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 110);
+
+  // while(!TEMPERATURES.ready())
+  // {
+  //   Serial.println("Discovering sensors..."); 
+  //   //TEMPERATURES.discoverSensors(); 
+  //   TEMPERATURES.readSensors(); 
+  //   TEMPERATURES.printSensors(); 
+  // }
+
 }
 
 void loop() 
 {
   core0AliveAt = millis(); 
-  CORE_0_KERNEL->run(CORE_0_KERNEL); 
+  CORE_0_KERNEL->run(CORE_0_KERNEL);
+  Serial.flush(); 
 }
 
 void loop1()
 {
+  while(!core2Start); 
   core1AliveAt = millis(); 
-  CORE_1_KERNEL->run(CORE_1_KERNEL); 
+  CORE_1_KERNEL->run(CORE_1_KERNEL);
+  Serial.flush(); 
 }
 
 void task_updateHttpResponse() 
 {
   unsigned long time = millis(); 
-  JSONVar document; 
+  JsonDocument document; 
 
   TEMPERATURES.addTo(document); 
   document["cpuTempC"] = cpu.getTemperature(); 
@@ -180,13 +172,18 @@ void task_updateHttpResponse()
   document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
   document["uptime"]["numRebootsCore0WDT"]   = numRebootsCore0WDT;
   document["uptime"]["numRebootsCore1WDT"]   = numRebootsCore1WDT;
-  document["uptime"]["numRebootsPingFailed"] = numRebootsPingFailed; 
-
-  if (xSemaphoreTakeRecursive( networkMutex, portTICK_PERIOD_MS * 10 ) != pdTRUE)
+  document["uptime"]["numRebootsPingFailed"]   = numRebootsPingFailed; 
+  document["uptime"]["numRebootsDisconnected"] = numRebootsDisconnected; 
+  if (xSemaphoreTakeRecursive( networkMutex, portTICK_PERIOD_MS * 100 ) != pdTRUE)
   {
     return; 
   }
-  httpResponseString = document.stringify(document); 
+  serializeJson(document, (char *)httpResponseString, HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
+  if(httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1])
+  {
+    Serial.println("WARNING: httpResponseString buffer full");
+    httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
+  }
   xSemaphoreGiveRecursive(networkMutex); 
 }
 
@@ -197,25 +194,34 @@ void task_core1ActOff() { digitalWrite(CORE_1_ACT, 0); }
 
 void task_readTemperatures()
 {
+  Serial.println("                             Enter task_readTemperatures");
   TEMPERATURES.readSensors();
+  Serial.println("                             Leave task_readTemperatures");
 }
 
 void task_mdnsUpdate()
 {
+  Serial.println("Enter task_mdnsUpdate");
   MDNS.update(); 
+  Serial.println("Leave task_mdnsUpdate");
 }
 
 void task_testWiFiConnection()
 {
+  Serial.println("Enter task_testWiFiConnection");
   if (!is_wifi_connected()) 
   {
+    Serial.println("Reboot from task_testWiFiConnection");
+    Serial.flush(); 
     numRebootsDisconnected++; 
     reboot();  
   }
+  Serial.println("Leave task_testWiFiConnection");
 }
 
 void task_testPing()
 {
+  Serial.println("Enter task_testPing");
   Ping ping = Ping::pingGateway(); 
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
@@ -223,6 +229,7 @@ void task_testPing()
     numRebootsPingFailed++; 
     reboot(); 
   }
+  Serial.println("Leave task_testPing");
 }
 
 bool is_wifi_connected() 
@@ -237,7 +244,7 @@ void wifi_connect()
   WiFi.noLowPowerMode();
   WiFi.begin(WIFI_SSID, WIFI_PASS);
 
-  int attempts = 20;
+  int attempts = 50;
   while (!is_wifi_connected() && (attempts--)) 
   {
     delay(1000);
