@@ -22,6 +22,7 @@ using AOS::SimplicityAC;
 using AOS::SimplicityACResponse; 
 
 volatile SimplicityACResponse* responseRef = 0; 
+HTTPClient httpClient; 
 
 SemaphoreHandle_t acDataMutex = xSemaphoreCreateRecursiveMutex();
 
@@ -93,7 +94,7 @@ bool SimplicityAC::execute(String params)
   
   //Serial.println("SimplicityAC::execute(String params): instantiate HTTPClient"); 
 
-  HTTPClient httpClient; 
+  
   //httpClient.setTimeout(10000);
 
   char url[256]; 
@@ -115,11 +116,10 @@ bool SimplicityAC::execute(String params)
 
   //Serial.println("\rHTTP connecting");
 
-  int code; 
-  if (httpClient.begin(url) && (code = httpClient.GET()) > 0) 
+  if (httpClient.begin(url)) 
   { 
     //Serial.printf("\rHTTP Connected: %d\r\n", code);
-    SimplicityACResponse *response = new SimplicityACResponse(url, code, millis()); 
+    SimplicityACResponse *response = new SimplicityACResponse(url, httpClient.GET(), millis()); 
     //response->print(); 
 
     if (response->isOK())
@@ -141,7 +141,7 @@ bool SimplicityAC::execute(String params)
     while (xSemaphoreTakeRecursive( acDataMutex, portMAX_DELAY ) != pdTRUE);
     responseRef = (volatile SimplicityACResponse*)response; 
     xSemaphoreGiveRecursive( acDataMutex );
-    //httpClient.end();
+    httpClient.end();
   }
   else 
   {

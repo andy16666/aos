@@ -91,14 +91,10 @@ void setup()
   httpResponseString = (volatile char *)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   httpResponseString[0] = 0;
   
- 
-  
   cpu.begin(); 
 
   pinMode(CORE_0_ACT, OUTPUT); 
   pinMode(CORE_1_ACT, OUTPUT); 
-
-  
 
   if (!MDNS.begin(HOSTNAME))
   {
