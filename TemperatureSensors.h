@@ -67,7 +67,7 @@ namespace AOS
       unsigned long lastReadMs;      
       
     public:
-      static inline const unsigned long READ_INTERVAL_MS = 3000; 
+      static inline const unsigned long READ_INTERVAL_MS = 10000; 
 
       TemperatureSensor() {}; 
       TemperatureSensor(const char* name, uint8_t shortAddress)
@@ -129,7 +129,7 @@ namespace AOS
 
       void setAddress(uint8_t address[ADDRESS_LENGTH]) 
       {  
-        Serial.printf("Setting address of %d to %s", addressToString(address).c_str()); 
+        Serial.printf("Setting address of %d to %s\r\n", shortAddress, addressToString(address).c_str()); 
         shortAddress = address[ADDRESS_LENGTH-1]; 
         for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = address[i]; }
       };
@@ -178,7 +178,7 @@ namespace AOS
         for (int i = 0; i < ADDRESS_LENGTH; i++)
         {
           if (i > 0) addressString += ":";
-          addressString += address[i];
+          addressString += '0'+address[i];
         }
         return addressString;
       };

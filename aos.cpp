@@ -102,12 +102,12 @@ void setup()
 
   if (!MDNS.begin(HOSTNAME))
   {
-    Serial.println("Failed to start MDNS");
+    //Serial.println("Failed to start MDNS");
     reboot(); 
   }
   
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_mdnsUpdate, 1); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testWiFiConnection, 109); 
+  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
+  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 100); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
   aosSetup(); 
@@ -128,7 +128,7 @@ void setup1()
 
   // while(!TEMPERATURES.ready())
   // {
-  //   Serial.println("Discovering sensors..."); 
+  //   //Serial.println("Discovering sensors..."); 
   //   //TEMPERATURES.discoverSensors(); 
   //   TEMPERATURES.readSensors(); 
   //   TEMPERATURES.printSensors(); 
@@ -181,7 +181,7 @@ void task_updateHttpResponse()
   serializeJson(document, (char *)httpResponseString, HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   if(httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1])
   {
-    Serial.println("WARNING: httpResponseString buffer full");
+    //Serial.println("WARNING: httpResponseString buffer full");
     httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   }
   xSemaphoreGiveRecursive(networkMutex); 
@@ -194,34 +194,34 @@ void task_core1ActOff() { digitalWrite(CORE_1_ACT, 0); }
 
 void task_readTemperatures()
 {
-  Serial.println("                             Enter task_readTemperatures");
+  //Serial.println("                             Enter task_readTemperatures");
   TEMPERATURES.readSensors();
-  Serial.println("                             Leave task_readTemperatures");
+  //Serial.println("                             Leave task_readTemperatures");
 }
 
 void task_mdnsUpdate()
 {
-  Serial.println("Enter task_mdnsUpdate");
+  //Serial.println("Enter task_mdnsUpdate");
   MDNS.update(); 
-  Serial.println("Leave task_mdnsUpdate");
+  //Serial.println("Leave task_mdnsUpdate");
 }
 
 void task_testWiFiConnection()
 {
-  Serial.println("Enter task_testWiFiConnection");
+  ////Serial.println("Enter task_testWiFiConnection");
   if (!is_wifi_connected()) 
   {
-    Serial.println("Reboot from task_testWiFiConnection");
+    ////Serial.println("Reboot from task_testWiFiConnection");
     Serial.flush(); 
     numRebootsDisconnected++; 
     reboot();  
   }
-  Serial.println("Leave task_testWiFiConnection");
+  ////Serial.println("Leave task_testWiFiConnection");
 }
 
 void task_testPing()
 {
-  Serial.println("Enter task_testPing");
+  ////Serial.println("Enter task_testPing");
   Ping ping = Ping::pingGateway(); 
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
@@ -229,7 +229,7 @@ void task_testPing()
     numRebootsPingFailed++; 
     reboot(); 
   }
-  Serial.println("Leave task_testPing");
+  //Serial.println("Leave task_testPing");
 }
 
 bool is_wifi_connected() 
@@ -256,16 +256,16 @@ void wifi_connect()
     reboot(); 
   }
 
-  Serial.println("Connected");
-  Serial.print("Connected to ");
-  Serial.println(WiFi.SSID());
+  //Serial.println("Connected");
+  //Serial.print("Connected to ");
+  //Serial.println(WiFi.SSID());
 
-  Serial.print("IP: ");
-  Serial.println(WiFi.localIP());
+  //Serial.print("IP: ");
+  //Serial.println(WiFi.localIP());
 
-  Serial.print("Hostname: ");
-  Serial.print(HOSTNAME);
-  Serial.println(".local");
+  //Serial.print("Hostname: ");
+  //Serial.print(HOSTNAME);
+  //Serial.println(".local");
 
   connectTime = millis();
 }

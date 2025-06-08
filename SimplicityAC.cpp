@@ -27,32 +27,32 @@ SemaphoreHandle_t acDataMutex = xSemaphoreCreateRecursiveMutex();
 
 void SimplicityAC::parse()
 {   
-  Serial.println("Enter SimplicityAC::parse()"); 
+  //Serial.println("Enter SimplicityAC::parse()"); 
   if (!responseRef)
   {
-    Serial.println("Leave SimplicityAC::parse(): no responseRef"); 
+    //Serial.println("Leave SimplicityAC::parse(): no responseRef"); 
     return; 
   }
 
-  Serial.println("SimplicityAC::parse(): acquire lock"); 
+  //Serial.println("SimplicityAC::parse(): acquire lock"); 
   if(xSemaphoreTakeRecursive( acDataMutex, portTICK_PERIOD_MS * 1 ) != pdTRUE)
   {
-    Serial.println("Leave SimplicityAC::parse(): lock timeout"); 
+    //Serial.println("Leave SimplicityAC::parse(): lock timeout"); 
     return;
   }
 
   if (!responseRef)
   {
-    Serial.println("Leave SimplicityAC::parse(): no responseRef under lock"); 
+    //Serial.println("Leave SimplicityAC::parse(): no responseRef under lock"); 
     xSemaphoreGiveRecursive( acDataMutex );
     return; 
   }
 
-  Serial.println("SimplicityAC::parse(): grab response"); 
+  //Serial.println("SimplicityAC::parse(): grab response"); 
   SimplicityACResponse *response = (SimplicityACResponse*)responseRef; 
   if (!response)
   {
-    Serial.println("Leave SimplicityAC::parse(): no response under lock"); 
+    //Serial.println("Leave SimplicityAC::parse(): no response under lock"); 
     xSemaphoreGiveRecursive( acDataMutex );
     return; 
   }
@@ -60,67 +60,67 @@ void SimplicityAC::parse()
   responseRef = nullptr; 
   xSemaphoreGiveRecursive( acDataMutex );
 
-  Serial.println("SimplicityAC::parse(): lock dropped"); 
+  //Serial.println("SimplicityAC::parse(): lock dropped"); 
 
   if (!response)
   {
-    Serial.println("Leave SimplicityAC::parse(): no response under lock"); 
+    //Serial.println("Leave SimplicityAC::parse(): no response under lock"); 
     xSemaphoreGiveRecursive( acDataMutex );
     return; 
   }
 
-  Serial.println("SimplicityAC::parse(): checking response:"); 
+  //Serial.println("SimplicityAC::parse(): checking response:"); 
   response->print();
   if(response->isOK() && response->hasPayload())
   {
-    Serial.println("SimplicityAC::parse(): initiating parse"); 
+    //Serial.println("SimplicityAC::parse(): initiating parse"); 
     response->parse(this);  
   }
 
-  Serial.println("SimplicityAC::parse(): delete response"); 
+  //Serial.println("SimplicityAC::parse(): delete response"); 
   delete response; 
-  Serial.println("Leave SimplicityAC::parse(): response deleted"); 
+  //Serial.println("Leave SimplicityAC::parse(): response deleted"); 
 }
 
 bool SimplicityAC::execute(String params)
 {
-  Serial.println("Enter SimplicityAC::execute(String params)"); 
+  //Serial.println("Enter SimplicityAC::execute(String params)"); 
   if (responseRef)
   {
-    Serial.println("Leave SimplicityAC::execute(String params): responseRef null"); 
+    //Serial.println("Leave SimplicityAC::execute(String params): responseRef null"); 
     return true; 
   }
   
-  Serial.println("SimplicityAC::execute(String params): instantiate HTTPClient"); 
+  //Serial.println("SimplicityAC::execute(String params): instantiate HTTPClient"); 
 
   HTTPClient httpClient; 
   //httpClient.setTimeout(10000);
 
   char url[256]; 
 
-  Serial.println("SimplicityAC::execute(String params): form URL"); 
+  //Serial.println("SimplicityAC::execute(String params): form URL"); 
 
   if (params.length() > 0)
   {
-    Serial.println("SimplicityAC::execute(String params): has params"); 
+    //Serial.println("SimplicityAC::execute(String params): has params"); 
     sprintf(url, "http://%s.local/%s", this->hostname.c_str(), params.c_str());
   }
   else 
   {
-    Serial.println("SimplicityAC::execute(String params): no params"); 
+    //Serial.println("SimplicityAC::execute(String params): no params"); 
     sprintf(url, "http://%s.local/", this->hostname.c_str());
   }
 
   bool success = false; 
 
-  Serial.println("\rHTTP connecting");
+  //Serial.println("\rHTTP connecting");
 
   int code; 
   if (httpClient.begin(url) && (code = httpClient.GET()) > 0) 
   { 
-    Serial.printf("\rHTTP Connected: %d\r\n", code);
+    //Serial.printf("\rHTTP Connected: %d\r\n", code);
     SimplicityACResponse *response = new SimplicityACResponse(url, code, millis()); 
-    response->print(); 
+    //response->print(); 
 
     if (response->isOK())
     {
@@ -145,10 +145,10 @@ bool SimplicityAC::execute(String params)
   }
   else 
   {
-    Serial.printf("%s: %s\r\n", url, "Failed to initialize HTTP client.");
+    //Serial.printf("%s: %s\r\n", url, "Failed to initialize HTTP client.");
   }
 
-  Serial.printf("Leave SimplicityAC::execute(String params) %d\r\n", success); 
+  //Serial.printf("Leave SimplicityAC::execute(String params) %d\r\n", success); 
 
   return success; 
 }
