@@ -34,21 +34,10 @@ bool TemperatureSensor::readTemp(DS18B20& ds)
   }
 
   float reading1C = ds.getTempC(); 
-  //float reading2C = ds.getTempC(); 
-  //float diff = fabs(reading1C - reading2C); 
-
-  //if (diff < 0.2 && isTempCValid(reading1C))
-  //{
-    tempC = reading1C; 
-    lastReadMs = millis(); 
-    read = true; 
-    return true;
-  /*}
-  else 
-  {
-    tempErrors++; 
-    return false; 
-  }*/
+  tempC = reading1C; 
+  lastReadMs = millis(); 
+  read = true; 
+  return true;
 }
 
 void TemperatureSensors::discoverSensors() 

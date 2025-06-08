@@ -21,12 +21,13 @@
 #include "aos.h"
 #include "config.h"
 #include "util.h"
-//#include "RPi_Pico_TimerInterrupt.h"
+#include <WebServer.h>
 
 using namespace AOS; 
 using AOS::Ping; 
 
 CPU cpu = CPU(); 
+WebServer server(80);
 
 /* The following are located in uninitialized memory, and so are preserved across a reboot. */
 /*
@@ -40,9 +41,6 @@ volatile unsigned long            initialize             __attribute__((section(
 volatile unsigned long            timeBaseMs             __attribute__((section(".uninitialized_data")));
 // Total time since power up. 
 volatile unsigned long            powerUpTime            __attribute__((section(".uninitialized_data")));
-
-volatile unsigned long            tempErrors             __attribute__((section(".uninitialized_data")));
-
 volatile unsigned long            numRebootsDisconnected __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsCore0WDT     __attribute__((section(".uninitialized_data")));
@@ -60,25 +58,18 @@ static volatile unsigned long core1AliveAt = millis();
 
 volatile int core2Start = 0; 
 
-//RPI_PICO_Timer aosWatchdogTimer0(0);
-//RPI_PICO_Timer aosWatchdogTimer1(1);
-
 SemaphoreHandle_t networkMutex;
 
 TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN); 
 
 void setup() 
 {
-  //rp2040.idleOtherCore(); 
   if (initialize)
   {
     timeBaseMs = 0; 
     powerUpTime = millis(); 
-    tempErrors = 0;    
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
-    numRebootsCore0WDT = 0; 
-    numRebootsCore1WDT = 0; 
     aosInitialize(); 
     initialize = 0; 
   }
@@ -88,6 +79,7 @@ void setup()
   wifi_connect();
 
   networkMutex = xSemaphoreCreateRecursiveMutex();
+
   httpResponseString = (volatile char *)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   httpResponseString[0] = 0;
   
@@ -98,17 +90,91 @@ void setup()
 
   if (!MDNS.begin(HOSTNAME))
   {
-    //Serial.println("Failed to start MDNS");
+    Serial.println("Failed to start MDNS. Rebooting.");
     reboot(); 
   }
-  
+
+  server.on("/", []() {
+    bool success = true; 
+    DPRINTLN("Enter / handler"); 
+
+    for (uint8_t i = 0; i < server.args() && success; i++) 
+    {
+      String argName = server.argName(i);
+      String arg = server.arg(i);
+
+      if (!handleHttpArg(argName, arg))
+      {
+        success = false;  
+      }
+      else
+      {
+        DPRINTLN("/ handler: parse bootloader"); 
+
+        if (argName.equals("bootloader") && arg.length() == 1) 
+        {
+          switch(arg.charAt(0))
+          {
+            case 'A':  rp2040.rebootToBootloader();  break;
+            default:   success = false;  
+          }
+        }
+
+        DPRINTLN("/ handler: parse reboot"); 
+
+        if (argName.equals("reboot") && arg.length() == 1) 
+        {
+          switch(arg.charAt(0))
+          {
+            case 'A':  reboot(); break;
+            default:   success = false;  
+          }
+        } 
+      }
+    }
+
+    if (success)
+    {
+      DPRINTLN("/ handler: success, get lock"); 
+
+      while(xSemaphoreTakeRecursive( networkMutex, portMAX_DELAY ) != pdTRUE)
+      {
+        DPRINTLN("httpAccept waiting");  Serial.flush(); 
+      }
+      String responseString = httpResponseString[0] ? String((char *)httpResponseString) : String("Loading..."); 
+      
+      DPRINTLN("/ handler: drop lock"); 
+      xSemaphoreGiveRecursive(networkMutex); 
+
+      DPRINTLN("/ handler: send 200"); 
+
+      server.send(200, "text/json", responseString.length() > 0 ? responseString.c_str() : "{ 'status':\"Loading...\" }");
+
+      DPRINTLN("/ handler: success sent 200"); 
+    }
+    else 
+    {
+      DPRINTLN("/ handler: fail send 500"); 
+
+      server.send(500, "text/plain", "Failed to parse request.");
+
+      DPRINTLN("/ handler: fail sent 500"); 
+    }
+
+    DPRINTLN("Leave / handler"); 
+  });
+
+  server.onNotFound(handleHttpNotFound);
+  server.begin();
+  DPRINTLN("HTTP server started");
+
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 100); 
+  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_handleHttpClient); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
   aosSetup(); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 110); 
-  //rp2040.resumeOtherCore(); 
+  CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 
   core2Start = 1; 
 }
@@ -116,20 +182,11 @@ void setup()
 void setup1()
 {
   while(!core2Start); 
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 100); 
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 5000);  
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 110);
-
-  // while(!TEMPERATURES.ready())
-  // {
-  //   //Serial.println("Discovering sensors..."); 
-  //   //TEMPERATURES.discoverSensors(); 
-  //   TEMPERATURES.readSensors(); 
-  //   TEMPERATURES.printSensors(); 
-  // }
-
+  CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 }
 
 void loop() 
@@ -147,6 +204,14 @@ void loop1()
   Serial.flush(); 
 }
 
+void task_handleHttpClient()
+{
+  DPRINTLN("Enter task_handleHttpClient");
+  server.handleClient(); 
+  DPRINTLN("Leave task_handleHttpClient");
+  delay(15); 
+}
+
 void task_updateHttpResponse() 
 {
   unsigned long time = millis(); 
@@ -154,7 +219,6 @@ void task_updateHttpResponse()
 
   TEMPERATURES.addTo(document); 
   document["cpuTempC"] = cpu.getTemperature(); 
-  document["tempErrors"] = tempErrors; 
 
   populateHttpResponse(document); 
   
@@ -166,8 +230,6 @@ void task_updateHttpResponse()
   document["uptime"]["connected"] = msToHumanReadableTime(time - connectTime).c_str();
   document["uptime"]["core0AliveAt"]   = msToHumanReadableTime(time - core0AliveAt).c_str();
   document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
-  document["uptime"]["numRebootsCore0WDT"]   = numRebootsCore0WDT;
-  document["uptime"]["numRebootsCore1WDT"]   = numRebootsCore1WDT;
   document["uptime"]["numRebootsPingFailed"]   = numRebootsPingFailed; 
   document["uptime"]["numRebootsDisconnected"] = numRebootsDisconnected; 
   if (xSemaphoreTakeRecursive( networkMutex, portTICK_PERIOD_MS * 100 ) != pdTRUE)
@@ -177,7 +239,7 @@ void task_updateHttpResponse()
   serializeJson(document, (char *)httpResponseString, HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   if(httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1])
   {
-    //Serial.println("WARNING: httpResponseString buffer full");
+    Serial.println("WARNING: httpResponseString buffer full");
     httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   }
   xSemaphoreGiveRecursive(networkMutex); 
@@ -190,42 +252,60 @@ void task_core1ActOff() { digitalWrite(CORE_1_ACT, 0); }
 
 void task_readTemperatures()
 {
-  //Serial.println("                             Enter task_readTemperatures");
+  DPRINTLN("                             Enter task_readTemperatures");
   TEMPERATURES.readSensors();
-  //Serial.println("                             Leave task_readTemperatures");
+  DPRINTLN("                             Leave task_readTemperatures");
 }
 
 void task_mdnsUpdate()
 {
-  //Serial.println("Enter task_mdnsUpdate");
+  DPRINTLN("Enter task_mdnsUpdate");
   MDNS.update(); 
-  //Serial.println("Leave task_mdnsUpdate");
+  DPRINTLN("Leave task_mdnsUpdate");
 }
 
 void task_testWiFiConnection()
 {
-  ////Serial.println("Enter task_testWiFiConnection");
+  DPRINTLN("Enter task_testWiFiConnection");
   if (!is_wifi_connected()) 
   {
-    ////Serial.println("Reboot from task_testWiFiConnection");
-    Serial.flush(); 
+    Serial.println("Reboot from task_testWiFiConnection"); Serial.flush(); 
     numRebootsDisconnected++; 
     reboot();  
   }
-  ////Serial.println("Leave task_testWiFiConnection");
+  DPRINTLN("Leave task_testWiFiConnection");
 }
 
 void task_testPing()
 {
-  ////Serial.println("Enter task_testPing");
+  DPRINTLN("Enter task_testPing");
   Ping ping = Ping::pingGateway(); 
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
   {
+    Serial.println("Reboot from task_testPing"); Serial.flush(); 
     numRebootsPingFailed++; 
     reboot(); 
   }
-  //Serial.println("Leave task_testPing");
+  DPRINTLN("Leave task_testPing");
+}
+
+void handleHttpNotFound() 
+{
+  String message = "File Not Found\n\n";
+  message += "URI: ";
+  message += server.uri();
+  message += "\nMethod: ";
+  message += (server.method() == HTTP_GET) ? "GET" : "POST";
+  message += "\nArguments: ";
+  message += server.args();
+  message += "\n";
+
+  for (uint8_t i = 0; i < server.args(); i++) {
+    message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
+  }
+
+  server.send(404, "text/plain", message);
 }
 
 bool is_wifi_connected() 
@@ -252,16 +332,16 @@ void wifi_connect()
     reboot(); 
   }
 
-  //Serial.println("Connected");
-  //Serial.print("Connected to ");
-  //Serial.println(WiFi.SSID());
+  DPRINTLN("Connected");
+  DPRINT("Connected to ");
+  DPRINTLN(WiFi.SSID());
 
-  //Serial.print("IP: ");
-  //Serial.println(WiFi.localIP());
+  DPRINT("IP: ");
+  DPRINTLN(WiFi.localIP());
 
-  //Serial.print("Hostname: ");
-  //Serial.print(HOSTNAME);
-  //Serial.println(".local");
+  DPRINT("Hostname: ");
+  DPRINT(HOSTNAME);
+  DPRINTLN(".local");
 
   connectTime = millis();
 }

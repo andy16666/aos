@@ -53,6 +53,17 @@
 #define AOS_WATCHDOG_TIMEOUT_MS 30000
 #define HTTP_RESPONSE_BUFFER_SIZE 4096
 
+//#define DPRINT_ON
+#ifdef DPRINT_ON
+    #define DPRINTF(format, ...) Serial.printf(format, __VA_ARGS__)
+    #define DPRINTLN(format) Serial.println(format)
+    #define DPRINT(format) Serial.print(format)
+#else
+    #define DPRINTF(format, ...) 
+    #define DPRINTLN(format) 
+    #define DPRINT(format) 
+#endif
+
 extern "C" {
 #include <threadkernel.h>
 };
@@ -78,6 +89,22 @@ extern threadkernel_t* CORE_1_KERNEL;
 
 extern const char* HOSTNAME; 
 
+static void task_testPing(); 
+static void task_mdnsUpdate(); 
+static void wifi_connect();
+static bool is_wifi_connected();
+static void handleHttpNotFound(); 
+
+static void task_testWiFiConnection(); 
+static void task_handleHttpClient(); 
+static void task_updateHttpResponse();
+
+static void task_readTemperatures();
+static void task_core0ActOn(); 
+static void task_core1ActOn(); 
+static void task_core0ActOff(); 
+static void task_core1ActOff(); 
+
 void reboot(); 
 const char* generateHostname(); 
 
@@ -85,20 +112,7 @@ void aosInitialize();
 void aosSetup(); 
 void aosSetup1();
 void populateHttpResponse(JsonDocument &document);  
-
-void task_core0ActOn(); 
-void task_core1ActOn(); 
-void task_core0ActOff(); 
-void task_core1ActOff(); 
-
-void task_testPing(); 
-void task_readTemperatures();
-void task_updateHttpResponse();
-
-void task_mdnsUpdate(); 
-void wifi_connect();
-bool is_wifi_connected();
-void task_testWiFiConnection(); 
+bool handleHttpArg(String argName, String arg); 
 
 uint32_t getTotalHeap();
 uint32_t getFreeHeap(); 
