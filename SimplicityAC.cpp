@@ -56,7 +56,7 @@ void SimplicityAC::parse()
     xSemaphoreGiveRecursive( acDataMutex );
     return; 
   }
-  response->print(); 
+  //response->print(); 
   responseRef = nullptr; 
   xSemaphoreGiveRecursive( acDataMutex );
 
@@ -70,7 +70,7 @@ void SimplicityAC::parse()
   }
 
   //Serial.println("SimplicityAC::parse(): checking response:"); 
-  response->print();
+  //response->print();
   if(response->isOK() && response->hasPayload())
   {
     //Serial.println("SimplicityAC::parse(): initiating parse"); 
@@ -125,7 +125,7 @@ bool SimplicityAC::execute(String params)
     if (response->isOK())
     {
       response->setPayload(httpClient.getString());
-      response->print(); 
+      //response->print(); 
       success = true; 
     }
     else if (response->isInternalServerError())
