@@ -17,10 +17,6 @@
 #include <semphr.h> 
 #include "aos.h"
 
-
-
-#define DEBUG_PRINT Serial.println
-
 using namespace AOS; 
 using AOS::SimplicityAC; 
 using AOS::SimplicityACResponse; 
@@ -125,7 +121,7 @@ bool SimplicityAC::execute(String params)
 
   if (httpClient.begin(url)) 
   { 
-    DPRINTF("\rHTTP Connected: %d\r\n", code);
+    DPRINTLN("\rHTTP Connected.");
     SimplicityACResponse *response = new SimplicityACResponse(url, httpClient.GET(), millis()); 
     //response->print(); 
 
@@ -149,7 +145,6 @@ bool SimplicityAC::execute(String params)
     responseRef = (volatile SimplicityACResponse*)response; 
     xSemaphoreGiveRecursive( acDataMutex );
     httpClient.end();
-    MDNS.update(); 
   }
   else 
   {
@@ -158,6 +153,7 @@ bool SimplicityAC::execute(String params)
 
   DPRINTF("Leave SimplicityAC::execute(String params) %d\r\n", success); 
 
+  delay(20); 
   return success; 
 }
 

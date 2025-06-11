@@ -49,7 +49,7 @@ volatile unsigned long            numRebootsCore1WDT     __attribute__((section(
 threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis); 
 threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis); 
 
-const char* HOSTNAME = generateHostname();
+static const char* hostname = generateHostname();
 
 volatile char* httpResponseString;
 
@@ -88,9 +88,9 @@ void setup()
   pinMode(CORE_0_ACT, OUTPUT); 
   pinMode(CORE_1_ACT, OUTPUT); 
 
-  if (!MDNS.begin(HOSTNAME))
+  if (!MDNS.begin(hostname))
   {
-    Serial.println("Failed to start MDNS. Rebooting.");
+    EPRINTLN("Failed to start MDNS. Rebooting.");
     reboot(); 
   }
 
@@ -115,7 +115,13 @@ void setup()
         {
           switch(arg.charAt(0))
           {
-            case 'A':  rp2040.rebootToBootloader();  break;
+            case 'A': 
+            {
+              server.sendHeader("Location", "/");
+              server.send(302, "text/plain", "Entering bootloader mode...");
+              rp2040.rebootToBootloader();  
+              break;
+            }
             default:   success = false;  
           }
         }
@@ -126,7 +132,13 @@ void setup()
         {
           switch(arg.charAt(0))
           {
-            case 'A':  reboot(); break;
+            case 'A': 
+            { 
+              server.sendHeader("Location", "/");
+              server.send(302, "text/plain", "Redirecting...");
+              reboot(); 
+              break;
+            }
             default:   success = false;  
           }
         } 
@@ -137,14 +149,10 @@ void setup()
     {
       DPRINTLN("/ handler: success, get lock"); 
 
-      while(xSemaphoreTakeRecursive( networkMutex, portMAX_DELAY ) != pdTRUE)
-      {
-        DPRINTLN("httpAccept waiting");  Serial.flush(); 
-      }
+      LOCK(networkMutex); 
       String responseString = httpResponseString[0] ? String((char *)httpResponseString) : String("Loading..."); 
-      
       DPRINTLN("/ handler: drop lock"); 
-      xSemaphoreGiveRecursive(networkMutex); 
+      UNLOCK(networkMutex); 
 
       DPRINTLN("/ handler: send 200"); 
 
@@ -193,7 +201,6 @@ void loop()
 {
   core0AliveAt = millis(); 
   CORE_0_KERNEL->run(CORE_0_KERNEL);
-  Serial.flush(); 
 }
 
 void loop1()
@@ -201,7 +208,6 @@ void loop1()
   while(!core2Start); 
   core1AliveAt = millis(); 
   CORE_1_KERNEL->run(CORE_1_KERNEL);
-  Serial.flush(); 
 }
 
 void task_handleHttpClient()
@@ -209,7 +215,7 @@ void task_handleHttpClient()
   DPRINTLN("Enter task_handleHttpClient");
   server.handleClient(); 
   DPRINTLN("Leave task_handleHttpClient");
-  delay(15); 
+  delay(20); 
 }
 
 void task_updateHttpResponse() 
@@ -232,17 +238,18 @@ void task_updateHttpResponse()
   document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
   document["uptime"]["numRebootsPingFailed"]   = numRebootsPingFailed; 
   document["uptime"]["numRebootsDisconnected"] = numRebootsDisconnected; 
-  if (xSemaphoreTakeRecursive( networkMutex, portTICK_PERIOD_MS * 100 ) != pdTRUE)
+  if (!TRYLOCK(networkMutex))
   {
     return; 
   }
+  httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   serializeJson(document, (char *)httpResponseString, HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   if(httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1])
   {
-    Serial.println("WARNING: httpResponseString buffer full");
+    WPRINTLN("httpResponseString buffer full");
     httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   }
-  xSemaphoreGiveRecursive(networkMutex); 
+  UNLOCK(networkMutex);
 }
 
 void task_core0ActOn()  { digitalWrite(CORE_0_ACT, 1); }
@@ -269,7 +276,7 @@ void task_testWiFiConnection()
   DPRINTLN("Enter task_testWiFiConnection");
   if (!is_wifi_connected()) 
   {
-    Serial.println("Reboot from task_testWiFiConnection"); Serial.flush(); 
+    WPRINTLN("Reboot from task_testWiFiConnection"); 
     numRebootsDisconnected++; 
     reboot();  
   }
@@ -283,7 +290,7 @@ void task_testPing()
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
   {
-    Serial.println("Reboot from task_testPing"); Serial.flush(); 
+    WPRINTLN("Reboot from task_testPing"); 
     numRebootsPingFailed++; 
     reboot(); 
   }
@@ -340,7 +347,7 @@ void wifi_connect()
   DPRINTLN(WiFi.localIP());
 
   DPRINT("Hostname: ");
-  DPRINT(HOSTNAME);
+  DPRINT(hostname);
   DPRINTLN(".local");
 
   connectTime = millis();

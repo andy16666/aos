@@ -44,11 +44,10 @@
 #include "TemperatureSensors.h"
 #include "Ping.h"
 
-#define AC_HOSTNAME "ac1"
 #define TEMP_SENSOR_PIN 2
 #define CORE_0_ACT   18
 #define CORE_1_ACT   19
-#define PING_INTERVAL_MS 10000
+#define PING_INTERVAL_MS 15000
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
 #define AOS_WATCHDOG_TIMEOUT_MS 30000
 #define HTTP_RESPONSE_BUFFER_SIZE 4096
@@ -64,6 +63,18 @@
     #define DPRINT(format) 
 #endif
 
+#define EPRINTF(format, ...) Serial.print("ERROR: "); Serial.printf(format, __VA_ARGS__)
+#define EPRINTLN(format) Serial.print("ERROR: "); Serial.println(format)
+#define EPRINT(format) Serial.print("ERROR: "); Serial.print(format)
+
+#define WPRINTF(format, ...) Serial.print("WARNING: "); Serial.printf(format, __VA_ARGS__)
+#define WPRINTLN(format) Serial.print("WARNING: "); Serial.println(format)
+#define WPRINT(format) Serial.print("WARNING: "); Serial.print(format)
+
+#define LOCK(mutex) while(xSemaphoreTakeRecursive(mutex, portMAX_DELAY) != pdTRUE)
+#define TRYLOCK(mutex) (xSemaphoreTakeRecursive(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
+#define UNLOCK(mutex) xSemaphoreGiveRecursive(mutex); 
+
 extern "C" {
 #include <threadkernel.h>
 };
@@ -76,7 +87,6 @@ extern volatile unsigned long            initialize             ;
 extern volatile unsigned long            powerUpTime            ;
 extern volatile unsigned long            numRebootsDisconnected ;
 extern volatile unsigned long            timeBaseMs             ;
-extern volatile unsigned long            tempErrors             ;
 extern volatile unsigned long            numRebootsPingFailed   ;
 
 volatile inline unsigned long startupTime = millis();
@@ -87,7 +97,7 @@ extern SemaphoreHandle_t networkMutex;
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;
 
-extern const char* HOSTNAME; 
+//extern const char* hostname; 
 
 static void task_testPing(); 
 static void task_mdnsUpdate(); 

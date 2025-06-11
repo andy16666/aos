@@ -27,6 +27,7 @@
 #include <cstddef>
 
 #include <Arduino.h>
+#include <ArduinoJson.h>
 
 using namespace std; 
 
@@ -61,6 +62,16 @@ namespace AOS
       pin_size_t getPin() const;
       bool getCommand() const;
       bool getState() const;
+
+      void addTo(const char* key, JsonDocument& document) 
+      {
+        document[key][name.c_str()] = command; 
+      }
+
+      void addTo(JsonDocument& document) 
+      {
+        document[name.c_str()] = command; 
+      }
   };
 
   class GPIOOutputs
@@ -96,6 +107,22 @@ namespace AOS
             p.init(); 
             delay(500);
           }
+        }
+      }
+
+      void addTo(JsonDocument& document) 
+      {
+        for (auto &[sA, s] : this->m)
+        {
+          s.addTo(document); 
+        }
+      }
+
+      void addTo(const char* key, JsonDocument& document) 
+      {
+        for (auto &[sA, s] : this->m)
+        {
+          s.addTo(key, document); 
         }
       }
 

@@ -42,8 +42,6 @@
 
 using namespace std;
 
-extern volatile unsigned long            tempErrors             ;
-
 namespace AOS
 {
   const unsigned int ADDRESS_LENGTH = 8; 

@@ -119,6 +119,11 @@ namespace AOS
         return isCommand(CMD_AC_COOL_HIGH) || isCommand(CMD_AC_COOL_MED) || isCommand(CMD_AC_COOL_LOW);
       };
 
+      ac_cmd_t getCommand()
+      {
+        return command; 
+      }; 
+
       fan_state_t getFanState()
       {
         return fanState; 
