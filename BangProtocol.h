@@ -22,6 +22,7 @@
  */
 
 #include <Arduino.h> 
+#include <Arduino_CRC32.h>
 #include <RPi_Pico_TimerInterrupt.h>
 #include <aos.h>
 #include <map>
@@ -34,6 +35,7 @@ typedef enum {
   BC_STATE_RX_START, 
   BC_STATE_RX_CHAR, 
   BC_STATE_RX_ACK,
+  BC_STATE_RX_CHECKSUM,
   BC_STATE_RX_ABORT, 
   BC_STATE_RX_ERR, 
   BC_STATE_RX_DONE, 
@@ -175,7 +177,9 @@ namespace AOS
       };
 
     public: 
-      static inline const float TIMER_FREQ_HZ = 5555.555; 
+      // Raw bits per second is roughly this. 
+      //static inline const float TIMER_FREQ_HZ = 5555.555; 
+      static inline const float TIMER_FREQ_HZ = 2400;
       
       BangChannel(
         uint8_t txPin,
@@ -321,11 +325,11 @@ namespace AOS
               {
                 if (rx == rxPostambleExpect[timeInState])
                 {
+                  // The TX end will block while this is set so we can do the checksum and copy. 
                   digitalWrite(txPin, rxPostambleSend[timeInState]); 
                   if (timeInState == rxPostambleLength - 1)
                   {
-                    digitalWrite(txPin, rxPostambleSend[timeInState]); 
-                    goTo(BC_STATE_RX_DONE); 
+                    goTo(BC_STATE_RX_CHECKSUM); 
                   }
                 }
                 else 
@@ -333,6 +337,33 @@ namespace AOS
                   digitalWrite(txPin, !rxPostambleSend[timeInState]);
                   goTo(BC_STATE_RX_ERR);
                 }  
+              }
+              break; 
+            }
+            case BC_STATE_RX_CHECKSUM: 
+            {
+              int bufferLength = strlen(rxBuffer); 
+              if (bufferLength > 1)
+              {
+                bufferLength -= 1; 
+                uint8_t computedChecksum = computeChecksum(rxBuffer, bufferLength); 
+                uint8_t sentChecksum = rxBuffer[bufferLength];
+                rxBuffer[bufferLength] = 0; 
+
+                if (sentChecksum != computedChecksum)
+                {
+                  EPRINTF("Checksum failed: %x vs. %x (%d)\r\n", sentChecksum, computedChecksum, bufferLength); 
+                  goTo(BC_STATE_RX_ERR); 
+                }
+                else 
+                {
+                  goTo(BC_STATE_RX_DONE); 
+                }
+              }
+              else 
+              {
+                EPRINTLN("Checksum failed: not enough characters received."); 
+                goTo(BC_STATE_RX_ERR);
               }
               break; 
             }
@@ -403,7 +434,7 @@ namespace AOS
             }
             case BC_STATE_TX_ACK: 
             {
-              if (timeInState < rxPostambleLength + 1)
+              if (timeInState < rxPostambleLength)
               {
                 if (rx == rxPostambleSend[timeInState - 1])
                 {
@@ -487,19 +518,37 @@ namespace AOS
         }
         else
         {
-          for (int i = 0; i < data.length() && i < (BC_RX_BUFFER_SIZE - 1); i++)
+          for (int i = 0; i < data.length() && i < (BC_RX_BUFFER_SIZE - (4+1)); i++)
           {
             txBuffer[i] = data.c_str()[i]; 
             txBuffer[i+1] = 0; 
           }
+
+          int bufferLength = strlen(txBuffer); 
+
+          txBuffer[bufferLength] = computeChecksum(txBuffer, bufferLength);
+          txBuffer[bufferLength + 1] = 0; 
           txReady = true; 
-          
+
           return true; 
         }
       };
 
       void init(); 
+
+      uint8_t computeChecksum(char * buffer, int length)
+      {
+        uint8_t checksum = buffer[0]; 
+        for (int i = 0; i < length; i++)
+        {
+          checksum ^= (uint8_t)(buffer[i]); 
+        }
+
+        return checksum; 
+      };
   };
+
+  
 
   
 }
