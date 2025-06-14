@@ -22,6 +22,7 @@
 #include "config.h"
 #include "util.h"
 #include <WebServer.h>
+#include <LittleFS.h> 
 
 using namespace AOS; 
 using AOS::Ping; 
@@ -43,11 +44,10 @@ volatile unsigned long            timeBaseMs             __attribute__((section(
 volatile unsigned long            powerUpTime            __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsDisconnected __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsCore0WDT     __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsCore1WDT     __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsWDT     __attribute__((section(".uninitialized_data")));
 
-threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis); 
-threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis); 
+threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis, &afterProcess); 
+threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis, &afterProcess); 
 
 static const char* hostname = generateHostname();
 
@@ -58,9 +58,11 @@ static volatile unsigned long core1AliveAt = millis();
 
 volatile int core2Start = 0; 
 
-SemaphoreHandle_t networkMutex;
+MUTEX_T networkMutex;
 
 TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN); 
+
+char indexHTML[HTML_BUFFER_SIZE]; 
 
 void setup() 
 {
@@ -70,12 +72,19 @@ void setup()
     powerUpTime = millis(); 
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
+    numRebootsWDT = 0; 
     aosInitialize(); 
     initialize = 0; 
   }
 
+  if (rp2040.getResetReason() == RP2040::WDT_RESET)
+  {
+    numRebootsWDT++; 
+  }
+
   Serial.begin();
   Serial.setDebugOutput(false);
+
   wifi_connect();
 
   networkMutex = xSemaphoreCreateRecursiveMutex();
@@ -91,8 +100,27 @@ void setup()
   if (!MDNS.begin(hostname))
   {
     EPRINTLN("Failed to start MDNS. Rebooting.");
+    delay(5000); 
     reboot(); 
   }
+
+  Serial.println("Opening FS"); 
+
+  if(!LittleFS.begin())
+  {
+    EPRINTLN("Failed to mount filesystem."); 
+    delay(5000); 
+    reboot(); 
+  }
+
+  Serial.println("Reading FS"); 
+  readIndexHTML(); 
+
+  Serial.println("Read FS"); 
+
+  server.on("/index.html", []() {
+    server.send(200, "text/html", indexHTML);
+  }); 
 
   server.on("/", []() {
     bool success = true; 
@@ -117,8 +145,6 @@ void setup()
           {
             case 'A': 
             {
-              server.sendHeader("Location", "/");
-              server.send(302, "text/plain", "Entering bootloader mode...");
               rp2040.rebootToBootloader();  
               break;
             }
@@ -184,6 +210,8 @@ void setup()
   aosSetup(); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 
+  rp2040.wdt_begin(8300);
+
   core2Start = 1; 
 }
 
@@ -197,6 +225,11 @@ void setup1()
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 }
 
+void afterProcess(process_t *process)
+{
+  rp2040.wdt_reset();
+}
+
 void loop() 
 {
   core0AliveAt = millis(); 
@@ -208,6 +241,36 @@ void loop1()
   while(!core2Start); 
   core1AliveAt = millis(); 
   CORE_1_KERNEL->run(CORE_1_KERNEL);
+}
+
+void readIndexHTML()
+{
+  File file = LittleFS.open("/hrv.html", "r");
+  if (!file)
+  {
+    EPRINTLN("Failed to mount file."); 
+    delay(5000); 
+    reboot(); 
+  }
+
+  char *indexHTMLPtr = indexHTML; 
+  unsigned int count = 0; 
+  while(file.available())
+  {
+    *(indexHTMLPtr++) = file.read();
+    *indexHTMLPtr = 0; 
+
+    if ((++count) > HTML_BUFFER_SIZE - 2)
+    {
+      EPRINTLN("Failed to read HTML: buffer full."); 
+      delay(5000); 
+      reboot(); 
+    }
+  }
+
+  Serial.printf("Read %d/%d chars from file\r\n", count, HTML_BUFFER_SIZE); 
+
+  file.close(); 
 }
 
 void task_handleHttpClient()
@@ -238,6 +301,7 @@ void task_updateHttpResponse()
   document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
   document["uptime"]["numRebootsPingFailed"]   = numRebootsPingFailed; 
   document["uptime"]["numRebootsDisconnected"] = numRebootsDisconnected; 
+  document["uptime"]["numRebootsWDT"] = numRebootsWDT; 
   if (!TRYLOCK(networkMutex))
   {
     return; 

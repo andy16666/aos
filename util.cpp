@@ -24,7 +24,12 @@ double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity) {
     return Tw;
 }
 
-// https://www.1728.org/relhum.htm
+/**
+ * Computes a wet bulb humidity reading from a temp sensor covered with a wet 
+ * wick compared to a dry one in the same environment, similar to a psychrometer. 
+ * 
+ * See: https://www.1728.org/relhum.htm
+ */
 double calculate_relative_humidity(double td, double tw) 
 {        
     double N = 0.6687451584; 
@@ -68,5 +73,32 @@ String msToHumanReadableTime(long timeMs)
   }
 
   return String(buffer); 
+}
+
+void showbits( char x )
+{
+    char bits[9]; 
+    bits[8] = 0; 
+    int i=0;
+    for (i = 0; i < 8; i++)
+    {
+        bits[i] = (x & (0x01 << i) ? '1' : '0');
+    }
+    Serial.printf("%s\r\n", bits);
+}
+
+/**
+ * Braindead parity check designed to detect single bit 
+ * errors in transmissions. 
+ */
+uint8_t computeParityByte(char * buffer, int length)
+{
+    uint8_t checksum = 0; 
+    for (int i = 0; i < length; i++)
+    {
+        checksum ^= (uint8_t)(buffer[i]); 
+    }
+
+    return checksum; 
 }
 

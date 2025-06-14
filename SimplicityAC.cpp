@@ -24,111 +24,68 @@ using AOS::SimplicityACResponse;
 volatile SimplicityACResponse* responseRef = 0; 
 HTTPClient httpClient; 
 
-SemaphoreHandle_t acDataMutex = xSemaphoreCreateRecursiveMutex();
+MUTEX_T acDataMutex = xSemaphoreCreateRecursiveMutex();
 
 /**
  * Core 1: Parse the response from the air conditioner pointed to by responseRef; 
  */  
 void SimplicityAC::parse()
 {   
-  DPRINTLN("Enter SimplicityAC::parse()"); 
   if (!responseRef)
   {
-    DPRINTLN("Leave SimplicityAC::parse(): no responseRef"); 
     return; 
   }
 
-  DPRINTLN("SimplicityAC::parse(): acquire lock"); 
-  if(xSemaphoreTakeRecursive( acDataMutex, portTICK_PERIOD_MS * 1 ) != pdTRUE)
+  if(!TRYLOCK(acDataMutex))
   {
-    DPRINTLN("Leave SimplicityAC::parse(): lock timeout"); 
     return;
   }
 
+  // Recheck under lock. 
   if (!responseRef)
   {
-    DPRINTLN("Leave SimplicityAC::parse(): no responseRef under lock"); 
-    xSemaphoreGiveRecursive( acDataMutex );
+    UNLOCK( acDataMutex );
     return; 
   }
 
-  DPRINTLN("SimplicityAC::parse(): grab response"); 
   SimplicityACResponse *response = (SimplicityACResponse*)responseRef; 
-  if (!response)
-  {
-    DPRINTLN("Leave SimplicityAC::parse(): no response under lock"); 
-    xSemaphoreGiveRecursive( acDataMutex );
-    return; 
-  }
-  //response->print(); 
   responseRef = nullptr; 
-  xSemaphoreGiveRecursive( acDataMutex );
+  UNLOCK( acDataMutex );
 
-  DPRINTLN("SimplicityAC::parse(): lock dropped"); 
-
-  if (!response)
-  {
-    DPRINTLN("Leave SimplicityAC::parse(): no response under lock"); 
-    xSemaphoreGiveRecursive( acDataMutex );
-    return; 
-  }
-
-  DPRINTLN("SimplicityAC::parse(): checking response:"); 
-  //response->print();
   if(response->isOK() && response->hasPayload())
   {
-    DPRINTLN("SimplicityAC::parse(): initiating parse"); 
     response->parse(this);  
   }
 
-  DPRINTLN("SimplicityAC::parse(): delete response"); 
   delete response; 
-  DPRINTLN("Leave SimplicityAC::parse(): response deleted"); 
 }
 
 bool SimplicityAC::execute(String params)
 {
-  DPRINTLN("Enter SimplicityAC::execute(String params)"); 
   if (responseRef)
   {
-    DPRINTLN("Leave SimplicityAC::execute(String params): responseRef null"); 
     return true; 
   }
   
-  DPRINTLN("SimplicityAC::execute(String params): instantiate HTTPClient"); 
-
-  
-  //httpClient.setTimeout(10000);
-
   char url[256]; 
-
-  DPRINTLN("SimplicityAC::execute(String params): form URL"); 
-
   if (params.length() > 0)
   {
-    DPRINTLN("SimplicityAC::execute(String params): has params"); 
     sprintf(url, "http://%s.local/%s", this->hostname.c_str(), params.c_str());
   }
   else 
   {
-    DPRINTLN("SimplicityAC::execute(String params): no params"); 
     sprintf(url, "http://%s.local/", this->hostname.c_str());
   }
 
   bool success = false; 
 
-  DPRINTLN("\rHTTP connecting");
-
   if (httpClient.begin(url)) 
   { 
-    DPRINTLN("\rHTTP Connected.");
     SimplicityACResponse *response = new SimplicityACResponse(url, httpClient.GET(), millis()); 
-    //response->print(); 
 
     if (response->isOK())
     {
       response->setPayload(httpClient.getString());
-      //response->print(); 
       success = true; 
     }
     else if (response->isInternalServerError())
@@ -136,22 +93,18 @@ bool SimplicityAC::execute(String params)
       response->setPayload(httpClient.getString());
       response->print(); 
     }
-    else 
-    {
-      //response->print(); 
-    }
-
-    while (xSemaphoreTakeRecursive( acDataMutex, portMAX_DELAY ) != pdTRUE);
+    
+    LOCK( acDataMutex ); 
     responseRef = (volatile SimplicityACResponse*)response; 
-    xSemaphoreGiveRecursive( acDataMutex );
+    response = 0; 
+    UNLOCK( acDataMutex );
+
     httpClient.end();
   }
   else 
   {
     DPRINTF("%s: %s\r\n", url, "Failed to initialize HTTP client.");
   }
-
-  DPRINTF("Leave SimplicityAC::execute(String params) %d\r\n", success); 
 
   delay(20); 
   return success; 

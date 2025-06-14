@@ -29,9 +29,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-// Constructor 
-threadkernel_t* create_threadkernel(unsigned long (*millis)());
-
 struct threadkernel_t_t {
   unsigned long (*millis)(); 
   process_t *processes;
@@ -40,6 +37,7 @@ struct threadkernel_t_t {
   void  (*add)          (threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
   void  (*addImmediate) (threadkernel_t *k, void (*f)());
   void  (*run)          (threadkernel_t *k);
+  void  (*afterProcess) ();
 };
 
 struct process_t_t {
@@ -50,9 +48,12 @@ struct process_t_t {
   void (*f)(); 
 }; 
 
+// Constructor 
+threadkernel_t* create_threadkernel(unsigned long (*millis)(), void (*afterProcess)(process_t*));
+
 static void __threadkernel_addImmediate(threadkernel_t *k, void (*f)());
 static void __threadkernel_add(threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
 static void __threadkernel_run(threadkernel_t *k);
-static void runImmediate(threadkernel_t *k);
+static void __threadkernel_runImmediate(threadkernel_t *k);
 
 #endif 

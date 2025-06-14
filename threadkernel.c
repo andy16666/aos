@@ -14,7 +14,7 @@
  */
 #include "threadkernel.h"
 
-threadkernel_t* create_threadkernel(unsigned long(*millis)()) {
+threadkernel_t* create_threadkernel(unsigned long(*millis)(), void (*afterProcess)(process_t *)) {
   threadkernel_t* k = (threadkernel_t *)malloc(sizeof(threadkernel_t));
   
   k->millis       = millis; 
@@ -23,6 +23,7 @@ threadkernel_t* create_threadkernel(unsigned long(*millis)()) {
   k->add          = __threadkernel_add; 
   k->addImmediate = __threadkernel_addImmediate; 
   k->run          = __threadkernel_run; 
+  k->afterProcess = afterProcess;
 
   return k;
 }
@@ -55,15 +56,16 @@ void __threadkernel_run(threadkernel_t *k)
 
   if (!process)
   {
-    runImmediate(k); 
+    __threadkernel_runImmediate(k); 
   }
   
   while(process)
   {
-    runImmediate(k); 
+    __threadkernel_runImmediate(k); 
     if (k->millis() >= process->nextRunMilliseconds)
     {
       process->nextRunMilliseconds += process->periodMilliseconds;
+      k->afterProcess(process); 
       process->f(); 
     }
     
@@ -71,13 +73,14 @@ void __threadkernel_run(threadkernel_t *k)
   }
 }
 
-void runImmediate(threadkernel_t *k)
+void __threadkernel_runImmediate(threadkernel_t *k)
 {
   process_t *process = k->immediateProcesses; 
   
   while(process)
   {
     process->f(); 
+    k->afterProcess(process); 
     process = process->next; 
   }
 }

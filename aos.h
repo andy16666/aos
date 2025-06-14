@@ -51,6 +51,7 @@
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
 #define AOS_WATCHDOG_TIMEOUT_MS 30000
 #define HTTP_RESPONSE_BUFFER_SIZE 4096
+#define HTML_BUFFER_SIZE 32*1024
 
 //#define DPRINT_ON
 #ifdef DPRINT_ON
@@ -71,6 +72,7 @@
 #define WPRINTLN(format) Serial.print("WARNING: "); Serial.println(format)
 #define WPRINT(format) Serial.print("WARNING: "); Serial.print(format)
 
+#define MUTEX_T SemaphoreHandle_t
 #define LOCK(mutex) while(xSemaphoreTakeRecursive(mutex, portMAX_DELAY) != pdTRUE)
 #define TRYLOCK(mutex) (xSemaphoreTakeRecursive(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
 #define UNLOCK(mutex) xSemaphoreGiveRecursive(mutex); 
@@ -92,7 +94,7 @@ extern volatile unsigned long            numRebootsPingFailed   ;
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
 
-extern SemaphoreHandle_t networkMutex;
+extern MUTEX_T networkMutex;
 
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;
@@ -114,6 +116,8 @@ static void task_core0ActOn();
 static void task_core1ActOn(); 
 static void task_core0ActOff(); 
 static void task_core1ActOff(); 
+static void afterProcess(process_t *process);
+static void readIndexHTML();
 
 void reboot(); 
 const char* generateHostname(); 
