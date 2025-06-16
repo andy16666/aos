@@ -49,7 +49,7 @@ double calculate_relative_humidity(double td, double tw)
 
 String msToHumanReadableTime(long timeMs)
 {
-  char buffer[1024]; 
+  char buffer[256]; 
 
   if (timeMs < 1000)
   {
@@ -74,6 +74,80 @@ String msToHumanReadableTime(long timeMs)
 
   return String(buffer); 
 }
+
+String secondsToHumanReadableTime(double seconds)
+{
+  char buffer[256]; 
+
+  if (seconds < 1E-3)
+  {
+    double unitTime = seconds / 1E6; 
+    sprintf(buffer, "%dµs", unitTime);
+  }
+  else if (seconds < 1.0)
+  {
+    double unitTime = seconds / 1E3; 
+    sprintf(buffer, "%dms", unitTime);
+  }
+  else if (seconds < 60)
+  {
+    double unitTime = seconds; 
+    sprintf(buffer, "%5.2fs", unitTime);
+  }
+  else if (seconds < 60 * 60)
+  {
+    double unitTime = seconds/60.0; 
+    sprintf(buffer, "%5.2fm", unitTime);
+  }
+  else if (seconds < 24 * 60 * 60)
+  {
+    double unitTime = seconds/(60.0 * 60.0); 
+    sprintf(buffer, "%5.2fh", unitTime);
+  }
+  else
+  {
+    double unitTime = seconds/(24.0 * 60.0 * 60.0); 
+    sprintf(buffer, "%5.2fd", unitTime);
+  }
+
+  return String(buffer); 
+}
+
+String secondsToHMS(double timeSeconds)
+{
+  char buffer[256]; 
+
+  if (timeSeconds < 60)
+  {
+    double unitTime = timeSeconds; 
+    
+  }
+  else if (timeSeconds < 60 * 60)
+  {
+    double unitTime = timeSeconds/60.0; 
+    sprintf(buffer, "%5.2fm", unitTime);
+  }
+  else if (timeSeconds < 24 * 60 * 60)
+  {
+    double unitTime = timeSeconds/(60.0 * 60.0); 
+    sprintf(buffer, "%5.2fh", unitTime);
+  }
+  else
+  {
+    double unitTime = timeSeconds/(24.0 * 60.0 * 60.0); 
+    sprintf(buffer, "%5.2fd", unitTime);
+  }
+
+  int days  = (int)(timeSeconds / (24.0 * 60.0 * 60.0)); 
+  int hours = (int)(timeSeconds / (60.0 * 60.0)) - days * 24; 
+  int minutes = (int)(timeSeconds / (60.0)) - (days * 24 * 60  + hours * 60); 
+  int seconds = (int)(timeSeconds) - (days * 24 * 60 * 60 + hours * 60 * 60 + minutes * 60 ); 
+
+  sprintf(buffer, "%dd %2dh %2dm %2ds", days, hours, minutes, seconds);
+
+  return String(buffer); 
+}
+
 
 void showbits( char x )
 {

@@ -37,24 +37,31 @@ WebServer server(80);
   but has instead been rebooted, this will preserve its value of zero, indicating we can also 
   trust the rest of the data in uninitialized memory. 
 */ 
-volatile unsigned long            initialize             __attribute__((section(".uninitialized_data")));
-// Total time between power up and the last reboot. 
-volatile unsigned long            timeBaseMs             __attribute__((section(".uninitialized_data")));
-// Total time since power up. 
-volatile unsigned long            powerUpTime            __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsDisconnected __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsPingFailed   __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsWDT     __attribute__((section(".uninitialized_data")));
+volatile unsigned long            initialize               __attribute__((section(".uninitialized_data")));
 
-threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis, &afterProcess); 
-threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis, &afterProcess); 
+// Total time between power up and the last reboot. 
+volatile double                   timeBaseSeconds          __attribute__((section(".uninitialized_data")));
+
+// Total time since power up. 
+volatile unsigned long            powerUpTime              __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsMillisRollover __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsDisconnected   __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsPingFailed     __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsWDT            __attribute__((section(".uninitialized_data")));
+volatile unsigned long            core0AliveAt             __attribute__((section(".uninitialized_data"))); 
+volatile unsigned long            core1AliveAt             __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            lastProcess0             __attribute__((section(".uninitialized_data"))); 
+volatile unsigned long            lastProcess1             __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            tempErrors               __attribute__((section(".uninitialized_data")));
+
+threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis, &onMillisRollover, &micros, &beforeProcess0, &afterProcess0); 
+threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis, &onMillisRollover, &micros, &beforeProcess1, &afterProcess1); 
 
 static const char* hostname = generateHostname();
 
 volatile char* httpResponseString;
-
-static volatile unsigned long core0AliveAt = millis(); 
-static volatile unsigned long core1AliveAt = millis();
 
 volatile int core2Start = 0; 
 
@@ -64,26 +71,39 @@ TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN);
 
 char indexHTML[HTML_BUFFER_SIZE]; 
 
+volatile unsigned int lastRebootCausedBy = 0; 
+
 void setup() 
 {
   if (initialize)
   {
-    timeBaseMs = 0; 
+    timeBaseSeconds = 0; 
+    core0AliveAt = millis(); 
+    core1AliveAt = millis();
     powerUpTime = millis(); 
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
+    numRebootsMillisRollover = 0; 
     numRebootsWDT = 0; 
+    lastProcess0 = 0; 
+    lastProcess1 = 0; 
+    tempErrors = 0; 
     aosInitialize(); 
     initialize = 0; 
   }
 
-  if (rp2040.getResetReason() == RP2040::WDT_RESET)
-  {
-    numRebootsWDT++; 
-  }
+  lastRebootCausedBy = lastProcess0 ? lastProcess0 : (lastProcess1 ? lastProcess1 : lastRebootCausedBy); 
 
   Serial.begin();
   Serial.setDebugOutput(false);
+
+  if (rp2040.getResetReason() == RP2040::WDT_RESET)
+  {
+    timeBaseSeconds += core0AliveAt / 1E3;
+    numRebootsWDT++; 
+    
+    WPRINTF("watchdog timer caused a reboot. Last PIDs: (%d, %d)\r\n", lastProcess0, lastProcess1); 
+  }
 
   wifi_connect();
 
@@ -225,11 +245,6 @@ void setup1()
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 }
 
-void afterProcess(process_t *process)
-{
-  rp2040.wdt_reset();
-}
-
 void loop() 
 {
   core0AliveAt = millis(); 
@@ -241,6 +256,40 @@ void loop1()
   while(!core2Start); 
   core1AliveAt = millis(); 
   CORE_1_KERNEL->run(CORE_1_KERNEL);
+}
+
+void beforeProcess0(process_t *p)
+{
+  rp2040.wdt_reset();
+  lastProcess0 = p->pid; 
+}
+
+void afterProcess0(process_t *p)
+{
+  rp2040.wdt_reset();
+  lastProcess0 = 0; 
+}
+
+void beforeProcess1(process_t *p)
+{
+  rp2040.wdt_reset();
+  lastProcess1 = p->pid; 
+}
+
+void afterProcess1(process_t *p)
+{
+  rp2040.wdt_reset();
+  lastProcess1 = 0; 
+}
+
+double seconds()
+{
+  return timeBaseSeconds + (millis()/1E3); 
+}
+
+void onMillisRollover()
+{
+  reboot();
 }
 
 void readIndexHTML()
@@ -281,6 +330,20 @@ void task_handleHttpClient()
   delay(20); 
 }
 
+static inline void addUptimeStats(const char *prefix, JsonDocument& document)
+{
+  document[prefix]["powered"] = secondsToHMS(seconds()).c_str();
+  document[prefix]["booted"] = msToHumanReadableTime(millis() - startupTime).c_str();
+  document[prefix]["connected"] = msToHumanReadableTime(millis() - connectTime).c_str();
+  document[prefix]["numRebootsPingFailed"] = numRebootsPingFailed; 
+  document[prefix]["numRebootsDisconnected"] = numRebootsDisconnected; 
+  document[prefix]["numRebootsMillisRollover"] = numRebootsMillisRollover; 
+  document[prefix]["numRebootsWDT"] = numRebootsWDT; 
+  document[prefix]["lastRebootCausedBy"] = lastRebootCausedBy; 
+  document[prefix]["core0AliveAt"] = msToHumanReadableTime(millis() - core0AliveAt).c_str();
+  document[prefix]["core1AliveAt"] = msToHumanReadableTime(millis() - core1AliveAt).c_str();
+}
+
 void task_updateHttpResponse() 
 {
   unsigned long time = millis(); 
@@ -288,20 +351,14 @@ void task_updateHttpResponse()
 
   TEMPERATURES.addTo(document); 
   document["cpuTempC"] = cpu.getTemperature(); 
+  document["tempErrors"]   = tempErrors; 
 
   populateHttpResponse(document); 
   
   Ping::stats.addStats("ping", document); 
-  
   document["freeHeapB"] = getFreeHeap(); 
-  document["uptime"]["powered"] = msToHumanReadableTime((timeBaseMs + time) - powerUpTime).c_str();
-  document["uptime"]["booted"] = msToHumanReadableTime(time - startupTime).c_str();
-  document["uptime"]["connected"] = msToHumanReadableTime(time - connectTime).c_str();
-  document["uptime"]["core0AliveAt"]   = msToHumanReadableTime(time - core0AliveAt).c_str();
-  document["uptime"]["core1AliveAt"]   = msToHumanReadableTime(time - core1AliveAt).c_str();
-  document["uptime"]["numRebootsPingFailed"]   = numRebootsPingFailed; 
-  document["uptime"]["numRebootsDisconnected"] = numRebootsDisconnected; 
-  document["uptime"]["numRebootsWDT"] = numRebootsWDT; 
+  addUptimeStats("uptime", document); 
+
   if (!TRYLOCK(networkMutex))
   {
     return; 
@@ -313,6 +370,7 @@ void task_updateHttpResponse()
     WPRINTLN("httpResponseString buffer full");
     httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   }
+
   UNLOCK(networkMutex);
 }
 
@@ -419,7 +477,7 @@ void wifi_connect()
 
 void reboot()
 {
-  timeBaseMs += millis(); 
+  timeBaseSeconds += millis() / 1E3; 
   rp2040.reboot(); 
 }
 

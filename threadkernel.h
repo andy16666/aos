@@ -22,38 +22,68 @@
 #ifndef THREADKRNEL_HH
 #define THREADKRNEL_HH
 #define threadkernel_t struct threadkernel_t_t
-#define process_t struct process_t_t
+#define process_t      struct process_t_t
 #include <sys/types.h>
 #include <stdint.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 
-struct threadkernel_t_t {
-  unsigned long (*millis)(); 
-  process_t *processes;
-  process_t *immediateProcesses;
+struct threadkernel_t_t 
+{
+  unsigned int lastPid; 
 
-  void  (*add)          (threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
-  void  (*addImmediate) (threadkernel_t *k, void (*f)());
-  void  (*run)          (threadkernel_t *k);
-  void  (*afterProcess) ();
+  process_t*    processes;
+  process_t*    immediateProcesses;
+
+  unsigned long totalExecutions; 
+
+  double totalExecutionTimeSeconds; 
+
+  unsigned long (*millis)(); 
+  unsigned long (*micros)(); 
+
+  process_t*    (*add)              (threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
+  process_t*    (*addImmediate)     (threadkernel_t *k, void (*f)());
+  
+  void          (*run)              (threadkernel_t *k);
+
+  process_t*    (*getProcessByPid)  (threadkernel_t *k, unsigned int pid);
+
+  void          (*afterProcess)     (process_t *);
+  void          (*beforeProcess)    (process_t *);
+  void          (*onMillisRollover) ();
 };
 
-struct process_t_t {
+struct process_t_t 
+{
+  unsigned int pid; 
+
   unsigned long periodMilliseconds; 
   unsigned long nextRunMilliseconds; 
-  process_t     *next; 
+
+  unsigned long skippedExecutions; 
+  unsigned long totalExecutions; 
+
+  double totalExecutionTimeSeconds; 
 
   void (*f)(); 
+
+  process_t* next; 
 }; 
 
 // Constructor 
-threadkernel_t* create_threadkernel(unsigned long (*millis)(), void (*afterProcess)(process_t*));
+threadkernel_t* create_threadkernel(
+  unsigned long (*millis)(), 
+  void (*onMillisRollover)(), 
+  unsigned long (*micros)(), 
+  void (*beforeProcess)(process_t *), 
+  void (*afterProcess)(process_t *)
+);
 
-static void __threadkernel_addImmediate(threadkernel_t *k, void (*f)());
-static void __threadkernel_add(threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
+static process_t* __threadkernel_addImmediate(threadkernel_t *k, void (*f)());
+static process_t* __threadkernel_add(threadkernel_t *k, void (*f)(), unsigned long periodMilliseconds);
 static void __threadkernel_run(threadkernel_t *k);
-static void __threadkernel_runImmediate(threadkernel_t *k);
+static process_t* __threadkernel_get_process_by_pid(threadkernel_t *k, unsigned int pid);
 
 #endif 

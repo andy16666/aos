@@ -35,5 +35,7 @@
 double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
 double calculate_relative_humidity(double td, double tw);
 String msToHumanReadableTime(long timeMs); 
+String secondsToHumanReadableTime(double seconds);
+String secondsToHMS(double timeSeconds);
 void showbits( char x ); 
 uint8_t computeParityByte(char * buffer, int length); 

@@ -21,6 +21,8 @@ using namespace std;
 using AOS::TemperatureSensor; 
 using AOS::TemperatureSensors; 
 
+extern volatile unsigned long tempErrors; 
+
 bool TemperatureSensor::readTemp(DS18B20& ds)
 {
   if (!hasAddress())
@@ -30,11 +32,11 @@ bool TemperatureSensor::readTemp(DS18B20& ds)
 
   if (!ds.select(address))
   {
+    tempErrors++; 
     return false; 
   }
 
-  float reading1C = ds.getTempC(); 
-  tempC = reading1C; 
+  tempC = ds.getTempC(); 
   lastReadMs = millis(); 
   read = true; 
   return true;

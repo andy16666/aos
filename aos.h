@@ -85,11 +85,27 @@ extern AOS::TemperatureSensors TEMPERATURES;
 extern CPU cpu; 
 extern volatile char* httpResponseString; 
 
-extern volatile unsigned long            initialize             ;
-extern volatile unsigned long            powerUpTime            ;
-extern volatile unsigned long            numRebootsDisconnected ;
-extern volatile unsigned long            timeBaseMs             ;
-extern volatile unsigned long            numRebootsPingFailed   ;
+extern volatile unsigned long            tempErrors             ;
+
+/*
+volatile unsigned long            initialize               __attribute__((section(".uninitialized_data")));
+
+// Total time between power up and the last reboot. 
+volatile double                   timeBaseSeconds          __attribute__((section(".uninitialized_data")));
+
+// Total time since power up. 
+volatile unsigned long            powerUpTime              __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsMillisRollover __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsDisconnected   __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsPingFailed     __attribute__((section(".uninitialized_data")));
+volatile unsigned long            numRebootsWDT            __attribute__((section(".uninitialized_data")));
+volatile unsigned long            core0AliveAt             __attribute__((section(".uninitialized_data"))); 
+volatile unsigned long            core1AliveAt             __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            lastProcess0             __attribute__((section(".uninitialized_data"))); 
+volatile unsigned long            lastProcess1             __attribute__((section(".uninitialized_data")));
+
+volatile unsigned long            tempErrors               __attribute__((section(".uninitialized_data")));*/
 
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
@@ -116,8 +132,12 @@ static void task_core0ActOn();
 static void task_core1ActOn(); 
 static void task_core0ActOff(); 
 static void task_core1ActOff(); 
-static void afterProcess(process_t *process);
+static void afterProcess0(process_t *process);
+static void beforeProcess0(process_t *process);
+static void afterProcess1(process_t *process);
+static void beforeProcess1(process_t *process);
 static void readIndexHTML();
+static void onMillisRollover();
 
 void reboot(); 
 const char* generateHostname(); 
