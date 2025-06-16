@@ -41,6 +41,8 @@ void SimplicityAC::parse()
     return;
   }
 
+  rp2040.wdt_reset();
+
   // Recheck under lock. 
   if (!responseRef)
   {
@@ -54,6 +56,7 @@ void SimplicityAC::parse()
 
   if(response->isOK() && response->hasPayload())
   {
+    rp2040.wdt_reset();
     response->parse(this);  
   }
 
@@ -79,10 +82,21 @@ bool SimplicityAC::execute(String params)
 
   bool success = false; 
 
+  rp2040.wdt_reset(); 
   if (httpClient.begin(url)) 
   { 
-    SimplicityACResponse *response = new SimplicityACResponse(url, httpClient.GET(), millis()); 
+    rp2040.wdt_reset(); 
+    int code = httpClient.GET(); 
+    rp2040.wdt_reset(); 
 
+    if (code <= 0)
+    { 
+      httpClient.end(); 
+      return false; 
+    }
+
+    SimplicityACResponse *response = new SimplicityACResponse(url, code, millis()); 
+    
     if (response->isOK())
     {
       response->setPayload(httpClient.getString());
@@ -93,12 +107,13 @@ bool SimplicityAC::execute(String params)
       response->setPayload(httpClient.getString());
       response->print(); 
     }
-    
+
     LOCK( acDataMutex ); 
     responseRef = (volatile SimplicityACResponse*)response; 
     response = 0; 
     UNLOCK( acDataMutex );
 
+    rp2040.wdt_reset();
     httpClient.end();
   }
   else 

@@ -45,13 +45,14 @@
 #include "Ping.h"
 
 #define TEMP_SENSOR_PIN 2
-#define CORE_0_ACT   18
+#define CORE_0_ACT   LED_BUILTIN
 #define CORE_1_ACT   19
 #define PING_INTERVAL_MS 15000
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
 #define AOS_WATCHDOG_TIMEOUT_MS 30000
 #define HTTP_RESPONSE_BUFFER_SIZE 4096
 #define HTML_BUFFER_SIZE 32*1024
+#define TIMEZONE "AST4ADT,M3.2.0,M11.1.0"
 
 //#define DPRINT_ON
 #ifdef DPRINT_ON
@@ -73,7 +74,7 @@
 #define WPRINT(format) Serial.print("WARNING: "); Serial.print(format)
 
 #define MUTEX_T SemaphoreHandle_t
-#define LOCK(mutex) while(xSemaphoreTakeRecursive(mutex, portMAX_DELAY) != pdTRUE)
+#define LOCK(mutex) rp2040.wdt_reset(); while(xSemaphoreTakeRecursive(mutex, portMAX_DELAY) != pdTRUE); rp2040.wdt_reset()
 #define TRYLOCK(mutex) (xSemaphoreTakeRecursive(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
 #define UNLOCK(mutex) xSemaphoreGiveRecursive(mutex); 
 
@@ -86,26 +87,6 @@ extern CPU cpu;
 extern volatile char* httpResponseString; 
 
 extern volatile unsigned long            tempErrors             ;
-
-/*
-volatile unsigned long            initialize               __attribute__((section(".uninitialized_data")));
-
-// Total time between power up and the last reboot. 
-volatile double                   timeBaseSeconds          __attribute__((section(".uninitialized_data")));
-
-// Total time since power up. 
-volatile unsigned long            powerUpTime              __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsMillisRollover __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsDisconnected   __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsPingFailed     __attribute__((section(".uninitialized_data")));
-volatile unsigned long            numRebootsWDT            __attribute__((section(".uninitialized_data")));
-volatile unsigned long            core0AliveAt             __attribute__((section(".uninitialized_data"))); 
-volatile unsigned long            core1AliveAt             __attribute__((section(".uninitialized_data")));
-
-volatile unsigned long            lastProcess0             __attribute__((section(".uninitialized_data"))); 
-volatile unsigned long            lastProcess1             __attribute__((section(".uninitialized_data")));
-
-volatile unsigned long            tempErrors               __attribute__((section(".uninitialized_data")));*/
 
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
@@ -141,6 +122,8 @@ static void onMillisRollover();
 
 void reboot(); 
 const char* generateHostname(); 
+double seconds(); 
+String getFotmattedRealTime(); 
 
 void aosInitialize(); 
 void aosSetup(); 

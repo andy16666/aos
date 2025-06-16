@@ -23,6 +23,7 @@
 #include "util.h"
 #include <WebServer.h>
 #include <LittleFS.h> 
+#include <WiFiNTP.h>
 
 using namespace AOS; 
 using AOS::Ping; 
@@ -104,6 +105,9 @@ void setup()
     
     WPRINTF("watchdog timer caused a reboot. Last PIDs: (%d, %d)\r\n", lastProcess0, lastProcess1); 
   }
+
+  setenv("TZ", TIMEZONE, 1); 
+  tzset(); 
 
   wifi_connect();
 
@@ -332,6 +336,7 @@ void task_handleHttpClient()
 
 static inline void addUptimeStats(const char *prefix, JsonDocument& document)
 {
+  document[prefix]["time"] = getFotmattedRealTime();
   document[prefix]["powered"] = secondsToHMS(seconds()).c_str();
   document[prefix]["booted"] = msToHumanReadableTime(millis() - startupTime).c_str();
   document[prefix]["connected"] = msToHumanReadableTime(millis() - connectTime).c_str();
@@ -448,6 +453,7 @@ void wifi_connect()
   WiFi.mode(WIFI_STA);
   WiFi.noLowPowerMode();
   WiFi.begin(WIFI_SSID, WIFI_PASS);
+  NTP.begin("pool.ntp.org", "time.nist.gov");
 
   int attempts = 50;
   while (!is_wifi_connected() && (attempts--)) 
@@ -461,6 +467,9 @@ void wifi_connect()
     reboot(); 
   }
 
+  DPRINTF("Setting Clock"); 
+  NTP.waitSet();
+
   DPRINTLN("Connected");
   DPRINT("Connected to ");
   DPRINTLN(WiFi.SSID());
@@ -473,6 +482,14 @@ void wifi_connect()
   DPRINTLN(".local");
 
   connectTime = millis();
+}
+
+String getFotmattedRealTime()
+{
+  time_t now = time(nullptr);
+  struct tm timeinfo;
+  localtime_r(&now, &timeinfo);
+  return String(asctime(&timeinfo));
 }
 
 void reboot()

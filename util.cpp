@@ -116,34 +116,22 @@ String secondsToHumanReadableTime(double seconds)
 String secondsToHMS(double timeSeconds)
 {
   char buffer[256]; 
-
-  if (timeSeconds < 60)
-  {
-    double unitTime = timeSeconds; 
-    
-  }
-  else if (timeSeconds < 60 * 60)
-  {
-    double unitTime = timeSeconds/60.0; 
-    sprintf(buffer, "%5.2fm", unitTime);
-  }
-  else if (timeSeconds < 24 * 60 * 60)
-  {
-    double unitTime = timeSeconds/(60.0 * 60.0); 
-    sprintf(buffer, "%5.2fh", unitTime);
-  }
-  else
-  {
-    double unitTime = timeSeconds/(24.0 * 60.0 * 60.0); 
-    sprintf(buffer, "%5.2fd", unitTime);
-  }
-
   int days  = (int)(timeSeconds / (24.0 * 60.0 * 60.0)); 
   int hours = (int)(timeSeconds / (60.0 * 60.0)) - days * 24; 
   int minutes = (int)(timeSeconds / (60.0)) - (days * 24 * 60  + hours * 60); 
   int seconds = (int)(timeSeconds) - (days * 24 * 60 * 60 + hours * 60 * 60 + minutes * 60 ); 
 
-  sprintf(buffer, "%dd %2dh %2dm %2ds", days, hours, minutes, seconds);
+  const char* formatString = days > 0 
+    ? "%dd %2dh %2dm %2ds%n" 
+    : hours > 0 
+      ? "%n%2dh %2dm %2ds%n" 
+      : minutes > 0 
+        ? "%n%n%2dm %2ds%n" 
+        : seconds > 0 
+          ? "%n%n%n%2ds%n" 
+          : "%n%n%n%n%s"; 
+
+  sprintf(buffer, formatString, days, hours, minutes, seconds, msToHumanReadableTime((int)(timeSeconds * 1E3)).c_str());
 
   return String(buffer); 
 }
