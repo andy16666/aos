@@ -78,11 +78,6 @@
 #define NPRINTLN(format) Serial.print("NOTICE: "); Serial.println(format)
 #define NPRINT(format) Serial.print("NOTICE: "); Serial.print(format)
 
-#define MUTEX_T SemaphoreHandle_t
-#define LOCK(mutex) while(xSemaphoreTake(mutex, portMAX_DELAY) != pdTRUE)
-#define TRYLOCK(mutex) (xSemaphoreTake(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
-#define UNLOCK(mutex) xSemaphoreGive(mutex); 
-
 extern "C" {
 #include <threadkernel.h>
 };
