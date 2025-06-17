@@ -353,7 +353,6 @@ bool BangChannel::put(String data)
     return false; 
   }
 
-  LOCK(txPutLock); 
   lockTxBuffer(); 
 
   {
@@ -370,7 +369,6 @@ bool BangChannel::put(String data)
 
   // Allows TX to proceed. 
   txReady = true; 
-  UNLOCK(txPutLock);  
 
   return true;
 }
@@ -396,10 +394,8 @@ String BangChannel::get()
 
   else if (state == BC_STATE_RX_DONE)
   {
-    LOCK(rxGetLock); 
     String data = String(rxBuffer); 
     rxBufferPtr = rxBuffer; 
-    UNLOCK(rxGetLock); 
     return data;
   }
   

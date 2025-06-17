@@ -82,13 +82,9 @@ namespace AOS
       volatile bool txReady;
       volatile bool txInProgress; 
       bool initialized; 
-      MUTEX_T txPutLock; 
 
       // The number of ISR calls we've been in the current state, including this one. 
       unsigned long timeInState = 0; 
-
-      // Protects the RX buffer against multiple callers to get(). 
-      MUTEX_T rxGetLock; 
 
       void clearRXBuffer()
       {

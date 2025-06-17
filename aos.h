@@ -23,8 +23,6 @@
  */
 #ifndef AOS_H
 #define AOS_H
-#include <FreeRTOS.h> 
-#include <semphr.h> 
 #include <Arduino.h>
 #include <OneWire.h>
 #include <ArduinoJson.h>
@@ -97,8 +95,6 @@ extern volatile unsigned long            tempErrors             ;
 
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
-
-extern MUTEX_T networkMutex;
 
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;

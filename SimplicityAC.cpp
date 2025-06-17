@@ -13,8 +13,6 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 #include "SimplicityAC.h"
-#include <FreeRTOS.h>
-#include <semphr.h> 
 #include "aos.h"
 
 using namespace AOS; 
@@ -22,8 +20,6 @@ using AOS::SimplicityAC;
 using AOS::SimplicityACResponse; 
 
 volatile SimplicityACResponse* responseRef = 0; 
-
-MUTEX_T acDataMutex = xSemaphoreCreateRecursiveMutex();
 
 /**
  * Core 1: Parse the response from the air conditioner pointed to by responseRef; 
@@ -35,15 +31,15 @@ void SimplicityAC::parse()
     return; 
   }
 
-  if(!TRYLOCK(acDataMutex))
-  {
-    return;
-  }
+  //if(!TRYLOCK(acDataMutex))
+  //{
+    //return;
+  //}
 
   SimplicityACResponse *response = (SimplicityACResponse*)responseRef; 
   responseRef = nullptr; 
-  delay(50); 
-  UNLOCK( acDataMutex );
+  //UNLOCK( acDataMutex );
+  delay(1); 
 
   if(response->isOK() && response->hasPayload())
   {
@@ -75,7 +71,9 @@ bool SimplicityAC::execute(String params)
   HTTPClient httpClient;  
   if (httpClient.begin(url)) 
   { 
+    delay(1); 
     int code = httpClient.GET(); 
+    delay(1); 
     SimplicityACResponse *response = new SimplicityACResponse(url, code, millis()); 
     
     if (response->isOK())
@@ -89,11 +87,13 @@ bool SimplicityAC::execute(String params)
       response->print(); 
     }
     httpClient.end();
+    delay(1); 
 
-    LOCK( acDataMutex ); 
+    //LOCK( acDataMutex ); 
     responseRef = (volatile SimplicityACResponse*)response; 
     response = 0; 
-    UNLOCK( acDataMutex );
+    //UNLOCK( acDataMutex );
+    delay(1); 
   }
   else 
   {

@@ -58,32 +58,33 @@ volatile unsigned long            lastProcess1             __attribute__((sectio
 
 volatile unsigned long            tempErrors               __attribute__((section(".uninitialized_data")));
 
+volatile unsigned long            core0AliveAt __attribute__((section(".uninitialized_data"))); 
+volatile unsigned long            core1AliveAt __attribute__((section(".uninitialized_data")));
+
 threadkernel_t* CORE_0_KERNEL = create_threadkernel(&millis, &onMillisRollover, &micros, &beforeProcess0, &afterProcess0); 
 threadkernel_t* CORE_1_KERNEL = create_threadkernel(&millis, &onMillisRollover, &micros, &beforeProcess1, &afterProcess1); 
 
 static const char* hostname = generateHostname();
 
 volatile char* httpResponseString;
+volatile bool  httpResponseStringModificationInProgress; 
+volatile bool  httpResponseStringReadInProgress; 
 
 volatile int core2Start = 0; 
-
-MUTEX_T networkMutex;
 
 TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN); 
 
 char indexHTML[HTML_BUFFER_SIZE]; 
 
 volatile unsigned int lastRebootCausedBy = 0;
-volatile unsigned long            core0AliveAt; 
-volatile unsigned long            core1AliveAt;
-
 
 void setup() 
 {
   if (initialize)
   {
     timeBaseSeconds = 0; 
-    
+    core0AliveAt = millis(); 
+    core1AliveAt = millis();
     powerUpTime = millis(); 
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
@@ -119,10 +120,8 @@ void setup()
 
   wifi_connect();
 
-  networkMutex = xSemaphoreCreateRecursiveMutex();
-
-  httpResponseString = (volatile char *)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
-  httpResponseString[0] = 0;
+  httpResponseString = (volatile char*)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
+  httpResponseString[0] = 0; 
   
   cpu.begin(); 
 
@@ -187,15 +186,13 @@ void setup()
     if (success)
     {
       DPRINTLN("/ handler: success, get lock"); 
+      
+      httpResponseStringReadInProgress = true; 
+      while(httpResponseStringModificationInProgress); 
 
-      LOCK(networkMutex); 
-      String responseString = httpResponseString[0] ? String((char *)httpResponseString) : String("Loading..."); 
-      DPRINTLN("/ handler: drop lock"); 
-      UNLOCK(networkMutex); 
+      server.send(200, "text/json", httpResponseString[0] ? (char *)httpResponseString : "{ 'status':\"Loading...\" }");
 
-      DPRINTLN("/ handler: send 200"); 
-
-      server.send(200, "text/json", responseString.length() > 0 ? responseString.c_str() : "{ 'status':\"Loading...\" }");
+      httpResponseStringReadInProgress = false; 
 
       DPRINTLN("/ handler: success sent 200"); 
     }
@@ -231,15 +228,16 @@ void setup()
 void setup1()
 {
   while(!core2Start); 
+  CORE_1_KERNEL->addImmediate(CORE_1_KERNEL, task_updateHttpResponse);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
-  CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 5000);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 }
 
 void startWatchdogTimer()
 {
+  //rp2040.wdt_begin(8300); 
   watchdogTimer = new RPI_PICO_TimerInterrupt(WATCHDOG_TIMER_IRQ); 
   if (watchdogTimer->attachInterrupt(1, watchdogCallback))
   {
@@ -254,6 +252,8 @@ void startWatchdogTimer()
 bool watchdogCallback(repeating_timer*)
 {
   unsigned long timeMs = millis(); 
+
+  //rp2040.wdt_reset(); 
 
   if (!core2Start || timeMs < STARTUP_GRACE_PERIOD_MS)
   {
@@ -292,24 +292,28 @@ void beforeProcess0(process_t *p)
 {
   core0AliveAt = millis(); 
   lastProcess0 = p->pid; 
+  delay(1); 
 }
 
 void afterProcess0(process_t *p)
 {
   core0AliveAt = millis(); 
   lastProcess0 = 0; 
+  delay(1); 
 }
 
 void beforeProcess1(process_t *p)
 {
   core1AliveAt = millis(); 
   lastProcess1 = p->pid; 
+  delay(1); 
 }
 
 void afterProcess1(process_t *p)
 {
   core1AliveAt = millis(); 
   lastProcess1 = 0; 
+  delay(1); 
 }
 
 double seconds()
@@ -375,7 +379,7 @@ void task_handleHttpClient()
   server.handleClient(); 
   // Won't boot without at least 10ms delay here. handleClient() has 
   // a "_nulldelay" which is 1ms. It's weird, but apparently.
-  delay(50); 
+  delay(1); 
 }
 
 static inline void addUptimeStats(const char *prefix, JsonDocument& document)
@@ -408,10 +412,13 @@ void task_updateHttpResponse()
   document["freeHeapB"] = getFreeHeap(); 
   addUptimeStats("uptime", document); 
 
-  if (!TRYLOCK(networkMutex))
+  httpResponseStringModificationInProgress = true; 
+  if (httpResponseStringReadInProgress) 
   {
-    return; 
+      httpResponseStringModificationInProgress = false; 
+      return; 
   }
+
   httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   serializeJson(document, (char *)httpResponseString, HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
   if(httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1])
@@ -420,7 +427,8 @@ void task_updateHttpResponse()
     httpResponseString[HTTP_RESPONSE_BUFFER_SIZE - 1] = 0; 
   }
 
-  UNLOCK(networkMutex);
+  httpResponseStringModificationInProgress = false; 
+
 }
 
 void task_core0ActOn()  { digitalWrite(CORE_0_ACT, 1); }
