@@ -53,6 +53,9 @@
 #define HTTP_RESPONSE_BUFFER_SIZE 4096
 #define HTML_BUFFER_SIZE 32*1024
 #define TIMEZONE "AST4ADT,M3.2.0,M11.1.0"
+#define STARTUP_GRACE_PERIOD_MS 200000
+#define WATCHDOG_TIMER_REBOOT_MS 60000
+#define WATCHDOG_TIMER_IRQ 1
 
 //#define DPRINT_ON
 #ifdef DPRINT_ON
@@ -73,10 +76,14 @@
 #define WPRINTLN(format) Serial.print("WARNING: "); Serial.println(format)
 #define WPRINT(format) Serial.print("WARNING: "); Serial.print(format)
 
+#define NPRINTF(format, ...) Serial.print("NOTICE: "); Serial.printf(format, __VA_ARGS__)
+#define NPRINTLN(format) Serial.print("NOTICE: "); Serial.println(format)
+#define NPRINT(format) Serial.print("NOTICE: "); Serial.print(format)
+
 #define MUTEX_T SemaphoreHandle_t
-#define LOCK(mutex) rp2040.wdt_reset(); while(xSemaphoreTakeRecursive(mutex, portMAX_DELAY) != pdTRUE); rp2040.wdt_reset()
-#define TRYLOCK(mutex) (xSemaphoreTakeRecursive(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
-#define UNLOCK(mutex) xSemaphoreGiveRecursive(mutex); 
+#define LOCK(mutex) while(xSemaphoreTake(mutex, portMAX_DELAY) != pdTRUE)
+#define TRYLOCK(mutex) (xSemaphoreTake(mutex, portTICK_PERIOD_MS * 100) == pdTRUE)
+#define UNLOCK(mutex) xSemaphoreGive(mutex); 
 
 extern "C" {
 #include <threadkernel.h>
@@ -117,8 +124,11 @@ static void afterProcess0(process_t *process);
 static void beforeProcess0(process_t *process);
 static void afterProcess1(process_t *process);
 static void beforeProcess1(process_t *process);
-static void readIndexHTML();
+static void readIndexHTML(const char * htmlFilePath);
 static void onMillisRollover();
+
+static void startWatchdogTimer(); 
+static bool watchdogCallback(repeating_timer*); 
 
 void reboot(); 
 const char* generateHostname(); 
@@ -128,8 +138,10 @@ String getFotmattedRealTime();
 void aosInitialize(); 
 void aosSetup(); 
 void aosSetup1();
+
 void populateHttpResponse(JsonDocument &document);  
 bool handleHttpArg(String argName, String arg); 
+void setupFrontEnd(const char * htmlFilePath);
 
 uint32_t getTotalHeap();
 uint32_t getFreeHeap(); 

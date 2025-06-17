@@ -204,7 +204,7 @@ namespace AOS
       {
         this->code = code; 
         payload = String(""); 
-        this->url = url; 
+        this->url = String(url); 
         this->time = time; 
       }; 
 
@@ -218,7 +218,7 @@ namespace AOS
       void setPayload(String payload) 
       {
         payload.replace("\n", "\r\n");
-        this->payload = payload; 
+        this->payload = String(payload); 
       }; 
 
       void parse(SimplicityAC* ac); 

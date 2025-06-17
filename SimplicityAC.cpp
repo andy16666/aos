@@ -22,7 +22,6 @@ using AOS::SimplicityAC;
 using AOS::SimplicityACResponse; 
 
 volatile SimplicityACResponse* responseRef = 0; 
-HTTPClient httpClient; 
 
 MUTEX_T acDataMutex = xSemaphoreCreateRecursiveMutex();
 
@@ -41,22 +40,13 @@ void SimplicityAC::parse()
     return;
   }
 
-  rp2040.wdt_reset();
-
-  // Recheck under lock. 
-  if (!responseRef)
-  {
-    UNLOCK( acDataMutex );
-    return; 
-  }
-
   SimplicityACResponse *response = (SimplicityACResponse*)responseRef; 
   responseRef = nullptr; 
+  delay(50); 
   UNLOCK( acDataMutex );
 
   if(response->isOK() && response->hasPayload())
   {
-    rp2040.wdt_reset();
     response->parse(this);  
   }
 
@@ -67,7 +57,7 @@ bool SimplicityAC::execute(String params)
 {
   if (responseRef)
   {
-    return true; 
+    return false; 
   }
   
   char url[256]; 
@@ -82,19 +72,10 @@ bool SimplicityAC::execute(String params)
 
   bool success = false; 
 
-  rp2040.wdt_reset(); 
+  HTTPClient httpClient;  
   if (httpClient.begin(url)) 
   { 
-    rp2040.wdt_reset(); 
     int code = httpClient.GET(); 
-    rp2040.wdt_reset(); 
-
-    if (code <= 0)
-    { 
-      httpClient.end(); 
-      return false; 
-    }
-
     SimplicityACResponse *response = new SimplicityACResponse(url, code, millis()); 
     
     if (response->isOK())
@@ -107,21 +88,18 @@ bool SimplicityAC::execute(String params)
       response->setPayload(httpClient.getString());
       response->print(); 
     }
+    httpClient.end();
 
     LOCK( acDataMutex ); 
     responseRef = (volatile SimplicityACResponse*)response; 
     response = 0; 
     UNLOCK( acDataMutex );
-
-    rp2040.wdt_reset();
-    httpClient.end();
   }
   else 
   {
     DPRINTF("%s: %s\r\n", url, "Failed to initialize HTTP client.");
   }
 
-  delay(20); 
   return success; 
 }
 

@@ -24,12 +24,15 @@
 #include <WebServer.h>
 #include <LittleFS.h> 
 #include <WiFiNTP.h>
+#include <RPi_Pico_TimerInterrupt.h>
 
 using namespace AOS; 
 using AOS::Ping; 
 
 CPU cpu = CPU(); 
 WebServer server(80);
+
+static RPI_PICO_TimerInterrupt* watchdogTimer = 0; 
 
 /* The following are located in uninitialized memory, and so are preserved across a reboot. */
 /*
@@ -49,8 +52,6 @@ volatile unsigned long            numRebootsMillisRollover __attribute__((sectio
 volatile unsigned long            numRebootsDisconnected   __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsPingFailed     __attribute__((section(".uninitialized_data")));
 volatile unsigned long            numRebootsWDT            __attribute__((section(".uninitialized_data")));
-volatile unsigned long            core0AliveAt             __attribute__((section(".uninitialized_data"))); 
-volatile unsigned long            core1AliveAt             __attribute__((section(".uninitialized_data")));
 
 volatile unsigned long            lastProcess0             __attribute__((section(".uninitialized_data"))); 
 volatile unsigned long            lastProcess1             __attribute__((section(".uninitialized_data")));
@@ -72,15 +73,17 @@ TemperatureSensors TEMPERATURES = TemperatureSensors(TEMP_SENSOR_PIN);
 
 char indexHTML[HTML_BUFFER_SIZE]; 
 
-volatile unsigned int lastRebootCausedBy = 0; 
+volatile unsigned int lastRebootCausedBy = 0;
+volatile unsigned long            core0AliveAt; 
+volatile unsigned long            core1AliveAt;
+
 
 void setup() 
 {
   if (initialize)
   {
     timeBaseSeconds = 0; 
-    core0AliveAt = millis(); 
-    core1AliveAt = millis();
+    
     powerUpTime = millis(); 
     numRebootsPingFailed = 0;  
     numRebootsDisconnected = 0; 
@@ -93,7 +96,9 @@ void setup()
     initialize = 0; 
   }
 
-  lastRebootCausedBy = lastProcess0 ? lastProcess0 : (lastProcess1 ? lastProcess1 : lastRebootCausedBy); 
+  lastRebootCausedBy = lastProcess0 
+          ? lastProcess0 
+          : (lastProcess1 ? lastProcess1 : lastRebootCausedBy); 
 
   Serial.begin();
   Serial.setDebugOutput(false);
@@ -105,6 +110,9 @@ void setup()
     
     WPRINTF("watchdog timer caused a reboot. Last PIDs: (%d, %d)\r\n", lastProcess0, lastProcess1); 
   }
+
+  core0AliveAt = millis(); 
+  core1AliveAt = millis();
 
   setenv("TZ", TIMEZONE, 1); 
   tzset(); 
@@ -124,27 +132,8 @@ void setup()
   if (!MDNS.begin(hostname))
   {
     EPRINTLN("Failed to start MDNS. Rebooting.");
-    delay(5000); 
     reboot(); 
   }
-
-  Serial.println("Opening FS"); 
-
-  if(!LittleFS.begin())
-  {
-    EPRINTLN("Failed to mount filesystem."); 
-    delay(5000); 
-    reboot(); 
-  }
-
-  Serial.println("Reading FS"); 
-  readIndexHTML(); 
-
-  Serial.println("Read FS"); 
-
-  server.on("/index.html", []() {
-    server.send(200, "text/html", indexHTML);
-  }); 
 
   server.on("/", []() {
     bool success = true; 
@@ -222,10 +211,6 @@ void setup()
     DPRINTLN("Leave / handler"); 
   });
 
-  server.onNotFound(handleHttpNotFound);
-  server.begin();
-  DPRINTLN("HTTP server started");
-
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
   CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_handleHttpClient); 
@@ -234,7 +219,11 @@ void setup()
   aosSetup(); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 
-  rp2040.wdt_begin(8300);
+  server.onNotFound(handleHttpNotFound);
+  server.begin();
+  NPRINTLN("HTTP server started");
+
+  startWatchdogTimer(); 
 
   core2Start = 1; 
 }
@@ -247,6 +236,43 @@ void setup1()
   aosSetup1();  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_updateHttpResponse, 5000);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
+}
+
+void startWatchdogTimer()
+{
+  watchdogTimer = new RPI_PICO_TimerInterrupt(WATCHDOG_TIMER_IRQ); 
+  if (watchdogTimer->attachInterrupt(1, watchdogCallback))
+  {
+    NPRINTLN("Starting timer OK, millis() = " + String(millis()));
+  }
+  else
+  {
+    EPRINTLN("Can't set timer. Select another freq. or timer");
+  }
+}
+
+bool watchdogCallback(repeating_timer*)
+{
+  unsigned long timeMs = millis(); 
+
+  if (!core2Start || timeMs < STARTUP_GRACE_PERIOD_MS)
+  {
+    return true; 
+  }
+
+  if (core0AliveAt < timeMs - WATCHDOG_TIMER_REBOOT_MS) 
+  {
+    numRebootsWDT++; 
+    reboot();   
+  }
+
+  if (core2Start && core1AliveAt < timeMs - WATCHDOG_TIMER_REBOOT_MS) 
+  {
+    numRebootsWDT++; 
+    reboot(); 
+  }
+
+  return true; 
 }
 
 void loop() 
@@ -264,25 +290,25 @@ void loop1()
 
 void beforeProcess0(process_t *p)
 {
-  rp2040.wdt_reset();
+  core0AliveAt = millis(); 
   lastProcess0 = p->pid; 
 }
 
 void afterProcess0(process_t *p)
 {
-  rp2040.wdt_reset();
+  core0AliveAt = millis(); 
   lastProcess0 = 0; 
 }
 
 void beforeProcess1(process_t *p)
 {
-  rp2040.wdt_reset();
+  core1AliveAt = millis(); 
   lastProcess1 = p->pid; 
 }
 
 void afterProcess1(process_t *p)
 {
-  rp2040.wdt_reset();
+  core1AliveAt = millis(); 
   lastProcess1 = 0; 
 }
 
@@ -296,13 +322,32 @@ void onMillisRollover()
   reboot();
 }
 
-void readIndexHTML()
+void setupFrontEnd(const char * htmlFilePath)
 {
-  File file = LittleFS.open("/hrv.html", "r");
+  Serial.println("Opening FS"); 
+
+  if(!LittleFS.begin())
+  {
+    EPRINTLN("Failed to mount filesystem."); 
+    reboot(); 
+  }
+
+  Serial.println("Reading FS"); 
+  readIndexHTML(htmlFilePath); 
+
+  Serial.println("Read FS"); 
+
+  server.on("/index.html", []() {
+    server.send(200, "text/html", indexHTML);
+  });
+}
+
+void readIndexHTML(const char * htmlFilePath)
+{
+  File file = LittleFS.open(htmlFilePath, "r");
   if (!file)
   {
     EPRINTLN("Failed to mount file."); 
-    delay(5000); 
     reboot(); 
   }
 
@@ -316,27 +361,26 @@ void readIndexHTML()
     if ((++count) > HTML_BUFFER_SIZE - 2)
     {
       EPRINTLN("Failed to read HTML: buffer full."); 
-      delay(5000); 
       reboot(); 
     }
   }
 
-  Serial.printf("Read %d/%d chars from file\r\n", count, HTML_BUFFER_SIZE); 
+  Serial.printf("Read %d/%d chars from file into buffer\r\n", count, HTML_BUFFER_SIZE); 
 
   file.close(); 
 }
 
 void task_handleHttpClient()
 {
-  DPRINTLN("Enter task_handleHttpClient");
   server.handleClient(); 
-  DPRINTLN("Leave task_handleHttpClient");
-  delay(20); 
+  // Won't boot without at least 10ms delay here. handleClient() has 
+  // a "_nulldelay" which is 1ms. It's weird, but apparently.
+  delay(50); 
 }
 
 static inline void addUptimeStats(const char *prefix, JsonDocument& document)
 {
-  document[prefix]["time"] = getFotmattedRealTime();
+  //document[prefix]["time"] = getFotmattedRealTime();
   document[prefix]["powered"] = secondsToHMS(seconds()).c_str();
   document[prefix]["booted"] = msToHumanReadableTime(millis() - startupTime).c_str();
   document[prefix]["connected"] = msToHumanReadableTime(millis() - connectTime).c_str();
@@ -386,33 +430,26 @@ void task_core1ActOff() { digitalWrite(CORE_1_ACT, 0); }
 
 void task_readTemperatures()
 {
-  DPRINTLN("                             Enter task_readTemperatures");
   TEMPERATURES.readSensors();
-  DPRINTLN("                             Leave task_readTemperatures");
 }
 
 void task_mdnsUpdate()
 {
-  DPRINTLN("Enter task_mdnsUpdate");
   MDNS.update(); 
-  DPRINTLN("Leave task_mdnsUpdate");
 }
 
 void task_testWiFiConnection()
 {
-  DPRINTLN("Enter task_testWiFiConnection");
   if (!is_wifi_connected()) 
   {
     WPRINTLN("Reboot from task_testWiFiConnection"); 
     numRebootsDisconnected++; 
     reboot();  
   }
-  DPRINTLN("Leave task_testWiFiConnection");
 }
 
 void task_testPing()
 {
-  DPRINTLN("Enter task_testPing");
   Ping ping = Ping::pingGateway(); 
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
@@ -421,7 +458,6 @@ void task_testPing()
     numRebootsPingFailed++; 
     reboot(); 
   }
-  DPRINTLN("Leave task_testPing");
 }
 
 void handleHttpNotFound() 
@@ -435,7 +471,8 @@ void handleHttpNotFound()
   message += server.args();
   message += "\n";
 
-  for (uint8_t i = 0; i < server.args(); i++) {
+  for (uint8_t i = 0; i < server.args(); i++) 
+  {
     message += " " + server.argName(i) + ": " + server.arg(i) + "\n";
   }
 
@@ -453,7 +490,7 @@ void wifi_connect()
   WiFi.mode(WIFI_STA);
   WiFi.noLowPowerMode();
   WiFi.begin(WIFI_SSID, WIFI_PASS);
-  NTP.begin("pool.ntp.org", "time.nist.gov");
+  //NTP.begin("pool.ntp.org", "time.nist.gov");
 
   int attempts = 50;
   while (!is_wifi_connected() && (attempts--)) 
@@ -467,8 +504,8 @@ void wifi_connect()
     reboot(); 
   }
 
-  DPRINTF("Setting Clock"); 
-  NTP.waitSet();
+  //DPRINTF("Setting Clock"); 
+  //NTP.waitSet();
 
   DPRINTLN("Connected");
   DPRINT("Connected to ");

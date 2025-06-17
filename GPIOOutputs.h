@@ -56,6 +56,7 @@ namespace AOS
 
       void setCommand(bool command);
       void execute();
+      void setAndExecute(bool command) { setCommand(command); execute(); };
       
       std::string getName() const;
       bool isSet() const;
@@ -96,6 +97,15 @@ namespace AOS
       {
         if (has(pin))
           get(pin).setCommand(command); 
+      };
+
+      void setAndExecute(const pin_size_t pin, bool command) 
+      {
+        if (has(pin))
+        {
+          get(pin).setCommand(command); 
+          get(pin).execute(); 
+        }
       };
 
       void init()
