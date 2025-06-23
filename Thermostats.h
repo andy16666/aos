@@ -35,6 +35,8 @@
 
 #include "util.h"
 
+#define COMMAND_EXPIRY_TIME_MS 600000
+
 using namespace std;
 
 namespace AOS
@@ -49,9 +51,11 @@ namespace AOS
       float setPointC; 
       float currentTemperatureC; 
       bool command; 
+      bool heatOn; 
       unsigned long lastUpdatedSetpointMs; 
       unsigned long lastUpdatedCurrentTempMs; 
       unsigned long lastUpdatedCommandMs; 
+      unsigned long lastUpdatedHeatOnMs; 
 
     public: 
       Thermostat() {}; 
@@ -59,11 +63,13 @@ namespace AOS
       void setSetPointC(float setPointC);
       void setCurrentTemperatureC(float currentTemperatureC);
       void setCommand(bool command);
+      void setHeatOn(bool heatOn); 
       
       std::string getName() const;
       float getSetPointC() const;
       float getCurrentTemperatureC() const;
       bool getCommand() const;
+      bool getHeatOn() const; 
 
       bool isCurrent(); 
       bool heatCalledFor();
@@ -78,11 +84,15 @@ namespace AOS
         document[key][name.c_str()]["currentAge"] = msToHumanReadableTime(millis() - lastUpdatedCurrentTempMs); 
         document[key][name.c_str()]["command"] = command; 
         document[key][name.c_str()]["commandAge"] = msToHumanReadableTime(millis() - lastUpdatedCommandMs); 
+        document[key][name.c_str()]["heatOn"] = heatOn; 
+        document[key][name.c_str()]["heatOnAge"] = msToHumanReadableTime(millis() - lastUpdatedHeatOnMs); 
       }
 
       unsigned long getLastUpdatedSetpointMs() const; 
       unsigned long getLastUpdatedCurrentTempMs() const; 
       unsigned long getLastUpdatedCommandMs() const; 
+      unsigned long getLastUpdatedHeatOnMs() const; 
+      
   };
 
   class Thermostats 
@@ -162,6 +172,5 @@ namespace AOS
           t.addTo(key, document); 
         }
       }
-      String toString();
   };
 }

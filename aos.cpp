@@ -30,6 +30,7 @@ using namespace AOS;
 using AOS::Ping; 
 
 CPU cpu = CPU(); 
+
 WebServer server(80);
 
 static RPI_PICO_TimerInterrupt* watchdogTimer = 0; 
@@ -55,8 +56,6 @@ volatile unsigned long            numRebootsWDT            __attribute__((sectio
 
 volatile unsigned long            lastProcess0             __attribute__((section(".uninitialized_data"))); 
 volatile unsigned long            lastProcess1             __attribute__((section(".uninitialized_data")));
-
-volatile unsigned long            tempErrors               __attribute__((section(".uninitialized_data")));
 
 volatile unsigned long            core0AliveAt __attribute__((section(".uninitialized_data"))); 
 volatile unsigned long            core1AliveAt __attribute__((section(".uninitialized_data")));
@@ -92,7 +91,6 @@ void setup()
     numRebootsWDT = 0; 
     lastProcess0 = 0; 
     lastProcess1 = 0; 
-    tempErrors = 0; 
     aosInitialize(); 
     initialize = 0; 
   }
@@ -115,104 +113,107 @@ void setup()
   core0AliveAt = millis(); 
   core1AliveAt = millis();
 
+  cpu.begin(); 
+
   setenv("TZ", TIMEZONE, 1); 
   tzset(); 
-
-  wifi_connect();
-
-  httpResponseString = (volatile char*)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
-  httpResponseString[0] = 0; 
-  
-  cpu.begin(); 
 
   pinMode(CORE_0_ACT, OUTPUT); 
   pinMode(CORE_1_ACT, OUTPUT); 
 
-  if (!MDNS.begin(hostname))
+  PICOW 
   {
-    EPRINTLN("Failed to start MDNS. Rebooting.");
-    reboot(); 
+    wifi_connect();
+
+    httpResponseString = (volatile char*)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
+    httpResponseString[0] = 0; 
+
+    if (!MDNS.begin(hostname))
+    {
+      EPRINTLN("Failed to start MDNS. Rebooting.");
+      reboot(); 
+    }
+
+    server.on("/", []() {
+      bool success = true; 
+      DPRINTLN("Enter / handler"); 
+
+      for (uint8_t i = 0; i < server.args() && success; i++) 
+      {
+        String argName = server.argName(i);
+        String arg = server.arg(i);
+
+        if (!handleHttpArg(argName, arg))
+        {
+          success = false;  
+        }
+        else
+        {
+          DPRINTLN("/ handler: parse bootloader"); 
+
+          if (argName.equals("bootloader") && arg.length() == 1) 
+          {
+            switch(arg.charAt(0))
+            {
+              case 'A': 
+              {
+                rp2040.rebootToBootloader();  
+                break;
+              }
+              default:   success = false;  
+            }
+          }
+
+          DPRINTLN("/ handler: parse reboot"); 
+
+          if (argName.equals("reboot") && arg.length() == 1) 
+          {
+            switch(arg.charAt(0))
+            {
+              case 'A': 
+              { 
+                server.sendHeader("Location", "/");
+                server.send(302, "text/plain", "Redirecting...");
+                reboot(); 
+                break;
+              }
+              default:   success = false;  
+            }
+          } 
+        }
+      }
+
+      if (success)
+      {
+        DPRINTLN("/ handler: success, get lock"); 
+        
+        httpResponseStringReadInProgress = true; 
+        while(httpResponseStringModificationInProgress); 
+
+        server.send(200, "text/json", httpResponseString[0] ? (char *)httpResponseString : "{ 'status':\"Loading...\" }");
+
+        httpResponseStringReadInProgress = false; 
+
+        DPRINTLN("/ handler: success sent 200"); 
+      }
+      else 
+      {
+        DPRINTLN("/ handler: fail send 500"); 
+
+        server.send(500, "text/plain", "Failed to parse request.");
+
+        DPRINTLN("/ handler: fail sent 500"); 
+      }
+
+      DPRINTLN("Leave / handler"); 
+    });
   }
 
-  server.on("/", []() {
-    bool success = true; 
-    DPRINTLN("Enter / handler"); 
-
-    for (uint8_t i = 0; i < server.args() && success; i++) 
-    {
-      String argName = server.argName(i);
-      String arg = server.arg(i);
-
-      if (!handleHttpArg(argName, arg))
-      {
-        success = false;  
-      }
-      else
-      {
-        DPRINTLN("/ handler: parse bootloader"); 
-
-        if (argName.equals("bootloader") && arg.length() == 1) 
-        {
-          switch(arg.charAt(0))
-          {
-            case 'A': 
-            {
-              rp2040.rebootToBootloader();  
-              break;
-            }
-            default:   success = false;  
-          }
-        }
-
-        DPRINTLN("/ handler: parse reboot"); 
-
-        if (argName.equals("reboot") && arg.length() == 1) 
-        {
-          switch(arg.charAt(0))
-          {
-            case 'A': 
-            { 
-              server.sendHeader("Location", "/");
-              server.send(302, "text/plain", "Redirecting...");
-              reboot(); 
-              break;
-            }
-            default:   success = false;  
-          }
-        } 
-      }
-    }
-
-    if (success)
-    {
-      DPRINTLN("/ handler: success, get lock"); 
-      
-      httpResponseStringReadInProgress = true; 
-      while(httpResponseStringModificationInProgress); 
-
-      server.send(200, "text/json", httpResponseString[0] ? (char *)httpResponseString : "{ 'status':\"Loading...\" }");
-
-      httpResponseStringReadInProgress = false; 
-
-      DPRINTLN("/ handler: success sent 200"); 
-    }
-    else 
-    {
-      DPRINTLN("/ handler: fail send 500"); 
-
-      server.send(500, "text/plain", "Failed to parse request.");
-
-      DPRINTLN("/ handler: fail sent 500"); 
-    }
-
-    DPRINTLN("Leave / handler"); 
-  });
-
-  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
-  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
-  CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_handleHttpClient); 
+  PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
+  PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
+  PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_handleHttpClient); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
-  CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
+  PICOW CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
   aosSetup(); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 
@@ -220,7 +221,7 @@ void setup()
   server.begin();
   NPRINTLN("HTTP server started");
 
-  startWatchdogTimer(); 
+  //startWatchdogTimer(); 
 
   core2Start = 1; 
 }
@@ -228,7 +229,7 @@ void setup()
 void setup1()
 {
   while(!core2Start); 
-  CORE_1_KERNEL->addImmediate(CORE_1_KERNEL, task_updateHttpResponse);  
+  PICOW CORE_1_KERNEL->addImmediate(CORE_1_KERNEL, task_updateHttpResponse);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
@@ -399,12 +400,11 @@ static inline void addUptimeStats(const char *prefix, JsonDocument& document)
 
 void task_updateHttpResponse() 
 {
-  unsigned long time = millis(); 
   JsonDocument document; 
 
   TEMPERATURES.addTo(document); 
   document["cpuTempC"] = cpu.getTemperature(); 
-  document["tempErrors"]   = tempErrors; 
+  document["tempErrors"] = TEMPERATURES.getTempErrors(); 
 
   populateHttpResponse(document); 
   
@@ -428,7 +428,6 @@ void task_updateHttpResponse()
   }
 
   httpResponseStringModificationInProgress = false; 
-
 }
 
 void task_core0ActOn()  { digitalWrite(CORE_0_ACT, 1); }

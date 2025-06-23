@@ -30,8 +30,8 @@ namespace AOS
 
     public: 
       static inline const float MAX_SPEED = 100.0; 
-      static inline const float MIN_START_SPEED = 15.0; 
-      static inline const float OFF_BELOW = 10.0; 
+      static inline const float MIN_START_SPEED = 20.0; 
+      static inline const float OFF_BELOW = 14.0; 
 
       PWMFan(const char *jsonName, pin_size_t onPin, pin_size_t pin)
       {

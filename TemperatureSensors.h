@@ -36,7 +36,6 @@
 // #define NDEBUG
 #include <cassert>
 
-#include <Arduino.h>
 #include <DS18B20.h>
 #include <ArduinoJson.h>
 
@@ -51,25 +50,27 @@ namespace AOS
   const unsigned long TEMP_EXPIRY_TIME_MS = 30000; 
   const unsigned long TEMP_VALID_TIME_MS = 300 * 1000; 
 
-  class TemperatureSensors;   
-  class TemperatureSensor; 
+  class TemperatureSensors;
+  class TemperatureSensor;
   class TemperatureSensor
   {
     private:
       uint8_t shortAddress;
       uint8_t address[ADDRESS_LENGTH];
-      String name; 
-      String jsonName; 
-      float tempC; 
-      bool read; 
-      unsigned long lastReadMs;      
-      
+      String name;
+      String jsonName;
+      float tempC;
+      bool read;
+      unsigned long lastReadMs;
+      unsigned int tempErrors; 
+
     public:
       static inline const unsigned long READ_INTERVAL_MS = 10000; 
 
       TemperatureSensor() {}; 
       TemperatureSensor(const char* name, uint8_t shortAddress)
       {
+        tempErrors = 0; 
         this->name = String(name); 
         this->jsonName = String(name) + String(shortAddress); 
         this->shortAddress = shortAddress; 
@@ -80,6 +81,7 @@ namespace AOS
 
       TemperatureSensor(const char* name, const char* jsonName, uint8_t shortAddress)
       {
+        tempErrors = 0; 
         this->name = String(name); 
         this->jsonName = String(jsonName); 
         this->shortAddress = shortAddress; 
@@ -90,6 +92,7 @@ namespace AOS
       
       TemperatureSensor(uint8_t address[ADDRESS_LENGTH])
       {
+        tempErrors = 0; 
         setAddress(address); 
         this->name = "Discovered"; 
         this->jsonName = String(this->name) + String(shortAddress); 
@@ -102,6 +105,7 @@ namespace AOS
         return name;
       };
 
+      unsigned int getTempErrors() { return tempErrors; }; 
       bool readTemp(DS18B20& ds); 
       bool isRead() { return read; };
       bool hasAddress() { return address[ADDRESS_LENGTH-1] == shortAddress; };
@@ -191,6 +195,7 @@ namespace AOS
   class TemperatureSensors
   {
     private:
+      unsigned int tempErrors; 
       std::map<uint8_t, TemperatureSensor> m;
       uint8_t pin; 
       DS18B20 ds; 
@@ -240,6 +245,17 @@ namespace AOS
             s.readTemp(ds); 
           }
         }
+      }; 
+
+      unsigned int getTempErrors()
+      {
+        unsigned int tempErrors = 0; 
+        for (auto &[sA, s] : this->m)
+        {
+          tempErrors += s.getTempErrors(); 
+        }
+
+        return tempErrors; 
       }; 
       
       bool isTempValid(uint8_t a) { return has(a) && get(a).isTempValid(); };

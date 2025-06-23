@@ -78,6 +78,8 @@
 #define NPRINTLN(format) Serial.print("NOTICE: "); Serial.println(format)
 #define NPRINT(format) Serial.print("NOTICE: "); Serial.print(format)
 
+#define PICOW if (rp2040.isPicoW())
+
 extern "C" {
 #include <threadkernel.h>
 };

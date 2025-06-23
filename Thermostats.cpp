@@ -16,18 +16,6 @@
 
 #include "Thermostats.h"
 
-#define THERMOSTAT_FORMAT_STRING "{ " \
-    "\"name\":\"%s\", " \
-    "\"setTempC\":\"%f\", " \
-    "\"setTempAge\":\"%s\", " \
-    "\"currentTempC\":\"%f\", " \
-    "\"currentTempAge\":\"%s\", " \
-    "\"command\":\"%d\", " \
-    "\"commandAge\":\"%s\" " \
-    "}"
-
-#define COMMAND_EXPIRY_TIME_MS 600000
-
 using namespace AOS; 
 using namespace std;
 
@@ -38,11 +26,13 @@ Thermostat::Thermostat(std::string name)
 { 
   this->name = name; 
   command = false; 
+  heatOn = false; 
   setPointC = 20.0; 
   currentTemperatureC = 20.0; 
   lastUpdatedCommandMs = millis(); 
   lastUpdatedCurrentTempMs = millis(); 
   lastUpdatedSetpointMs = millis(); 
+  lastUpdatedHeatOnMs = millis(); 
 } 
 
 unsigned long Thermostat::getLastUpdatedCurrentTempMs() const
@@ -58,6 +48,11 @@ unsigned long Thermostat::getLastUpdatedSetpointMs() const
 unsigned long Thermostat::getLastUpdatedCommandMs() const
 {
   return this->lastUpdatedCommandMs; 
+}
+
+unsigned long Thermostat::getLastUpdatedHeatOnMs() const
+{
+  return this->lastUpdatedHeatOnMs; 
 }
 
 void Thermostat::setSetPointC(float setPointC) 
@@ -78,6 +73,12 @@ void Thermostat::setCommand(bool command)
   this->lastUpdatedCommandMs = millis(); 
 }
 
+void Thermostat::setHeatOn(bool command) 
+{
+  this->heatOn = heatOn;
+  this->lastUpdatedHeatOnMs = millis(); 
+}
+
 float Thermostat::getSetPointC() const
 {
   return this->setPointC;
@@ -93,6 +94,11 @@ bool Thermostat::getCommand() const
   return this->command;
 }
 
+bool Thermostat::getHeatOn() const
+{
+  return this->heatOn;
+}
+
 std::string Thermostat::getName() const
 {
   return this->name;
@@ -100,12 +106,15 @@ std::string Thermostat::getName() const
 
 bool Thermostat::heatCalledFor() 
 {
-  return this->command && getSetPointC() > getCurrentTemperatureC();
+  return isCurrent() && getCommand() && (getSetPointC() > getCurrentTemperatureC() || getHeatOn());
 }
 
 bool Thermostat::coolingCalledFor() 
 {
-  return isCurrent() && getCommand() && getSetPointC() < getCurrentTemperatureC() && getMagnitude() > 0.25;
+  return isCurrent() 
+    && getCommand() 
+    && !getHeatOn() 
+    && getSetPointC() < getCurrentTemperatureC();
 }
 
 float Thermostat::getMagnitude()
@@ -149,35 +158,4 @@ Thermostat& Thermostats::get(char * name)
 { 
   std::string nameStr(name);
   return this->m[nameStr];
-}
-
-String Thermostats::toString() 
-{
-  char buffer[1024];
-
-  sprintf(buffer, "\n   [\n");
-  int i = 0;
-  for (const auto &[n, t] : this->m) 
-  {
-    if (i++ != 0)
-      sprintf(buffer + strlen(buffer), ",\n");
-    
-    sprintf(buffer + strlen(buffer), "    ");
-
-    unsigned long timeMs = millis(); 
-    sprintf(
-        buffer + strlen(buffer), 
-        THERMOSTAT_FORMAT_STRING,
-        t.getName().c_str(),
-        t.getSetPointC(),
-        msToHumanReadableTime(timeMs - t.getLastUpdatedSetpointMs()).c_str(),
-        t.getCurrentTemperatureC(),
-        msToHumanReadableTime(timeMs - t.getLastUpdatedCurrentTempMs()).c_str(),
-        t.getCommand() ? 1 : 0,
-        msToHumanReadableTime(timeMs - t.getLastUpdatedCommandMs()).c_str()
-      );
-  }
-  sprintf(buffer + strlen(buffer), "\n   ]");
-
-  return String(buffer);
 }

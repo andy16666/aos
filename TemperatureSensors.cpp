@@ -21,8 +21,6 @@ using namespace std;
 using AOS::TemperatureSensor; 
 using AOS::TemperatureSensors; 
 
-extern volatile unsigned long tempErrors; 
-
 bool TemperatureSensor::readTemp(DS18B20& ds)
 {
   if (!hasAddress())
