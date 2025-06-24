@@ -73,7 +73,7 @@ void Thermostat::setCommand(bool command)
   this->lastUpdatedCommandMs = millis(); 
 }
 
-void Thermostat::setHeatOn(bool command) 
+void Thermostat::setHeatOn(bool heatOn) 
 {
   this->heatOn = heatOn;
   this->lastUpdatedHeatOnMs = millis(); 

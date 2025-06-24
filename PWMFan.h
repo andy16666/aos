@@ -27,14 +27,16 @@ namespace AOS
       float state; 
       float command; 
       String jsonName; 
+      float offBelow; 
+      float minStart; 
+      float maxSpeed; 
 
     public: 
-      static inline const float MAX_SPEED = 100.0; 
-      static inline const float MIN_START_SPEED = 20.0; 
-      static inline const float OFF_BELOW = 14.0; 
-
-      PWMFan(const char *jsonName, pin_size_t onPin, pin_size_t pin)
+      PWMFan(const char *jsonName, pin_size_t onPin, pin_size_t pin, float offBelow, float minStart, float maxSpeed)
       {
+        this->offBelow = offBelow; 
+        this->minStart = minStart; 
+        this->maxSpeed = maxSpeed; 
         this->pin = pin; 
         this->onPin = onPin; 
         this->jsonName = String(jsonName); 
@@ -52,16 +54,16 @@ namespace AOS
         if (this->command == command)
           return; 
 
-        this->command = command < OFF_BELOW 
+        this->command = command < offBelow 
           ? 0.0 
-          : (command > MAX_SPEED
-            ? MAX_SPEED 
+          : (command > maxSpeed
+            ? maxSpeed 
             : command); 
       };
       
       bool isFanOff()
       {
-          return state < OFF_BELOW; 
+          return state < offBelow; 
       };
 
       void execute()
@@ -70,21 +72,21 @@ namespace AOS
         {
           return; 
         }
-        else if (command < OFF_BELOW)
+        else if (command < offBelow)
         {
           state = 0.0; 
         }
         else if (isFanOff())
         {
-          state = command >= MIN_START_SPEED ? command : MIN_START_SPEED; 
+          state = command >= minStart ? command : minStart; 
         }
         else 
         {
           state = command; 
         }
         
-        digitalWrite(onPin, state >= OFF_BELOW ? HIGH : LOW); 
-        analogWrite(pin, state >= OFF_BELOW ? state : 0.0); 
+        digitalWrite(onPin, state >= offBelow ? HIGH : LOW); 
+        analogWrite(pin, state >= offBelow ? state : 0.0); 
       };
 
       void addTo(const char * key, JsonDocument& document)
