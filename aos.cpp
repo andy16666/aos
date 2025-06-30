@@ -18,22 +18,31 @@
     Author: Andrew Somerville <andy16666@gmail.com> 
     GitHub: andy16666
  */
+
 #include "aos.h"
 #include "config.h"
 #include "util.h"
-#include <WebServer.h>
 #include <LittleFS.h> 
+
+#if defined(PICO_CYW43_SUPPORTED)
+#include <WebServer.h>
 #include <WiFiNTP.h>
-#include <RPi_Pico_TimerInterrupt.h>
+#endif
+
+
 
 using namespace AOS; 
+#if defined(PICO_CYW43_SUPPORTED)
 using AOS::Ping; 
+#endif
 
 CPU cpu = CPU(); 
 
+#if defined(PICO_CYW43_SUPPORTED)
 WebServer server(80);
+#endif
 
-static RPI_PICO_TimerInterrupt* watchdogTimer = 0; 
+//static RPI_PICO_TimerInterrupt* watchdogTimer = 0; 
 
 /* The following are located in uninitialized memory, and so are preserved across a reboot. */
 /*
@@ -121,122 +130,136 @@ void setup()
   pinMode(CORE_0_ACT, OUTPUT); 
   pinMode(CORE_1_ACT, OUTPUT); 
 
-  PICOW 
+  httpResponseString = (volatile char*)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
+  httpResponseString[0] = 0;
+
+#if defined(PICO_CYW43_SUPPORTED)
+  
+  wifi_connect();
+
+  NPRINTLN("WiFi started");
+
+  if (!MDNS.begin(hostname))
   {
-    wifi_connect();
+    EPRINTLN("Failed to start MDNS. Rebooting.");
+    reboot(); 
+  }
 
-    httpResponseString = (volatile char*)malloc(HTTP_RESPONSE_BUFFER_SIZE * sizeof(char)); 
-    httpResponseString[0] = 0; 
+  NPRINTLN("MDNS started");
 
-    if (!MDNS.begin(hostname))
+  server.on("/", []() {
+    bool success = true; 
+    DPRINTLN("Enter / handler"); 
+
+    for (uint8_t i = 0; i < server.args() && success; i++) 
     {
-      EPRINTLN("Failed to start MDNS. Rebooting.");
-      reboot(); 
+      String argName = server.argName(i);
+      String arg = server.arg(i);
+
+      if (!handleHttpArg(argName, arg))
+      {
+        success = false;  
+      }
+      else
+      {
+        DPRINTLN("/ handler: parse bootloader"); 
+
+        if (argName.equals("bootloader") && arg.length() == 1) 
+        {
+          switch(arg.charAt(0))
+          {
+            case 'A': 
+            {
+              rp2040.rebootToBootloader();  
+              break;
+            }
+            default:   success = false;  
+          }
+        }
+
+        DPRINTLN("/ handler: parse reboot"); 
+
+        if (argName.equals("reboot") && arg.length() == 1) 
+        {
+          switch(arg.charAt(0))
+          {
+            case 'A': 
+            { 
+              server.sendHeader("Location", "/");
+              server.send(302, "text/plain", "Redirecting...");
+              reboot(); 
+              break;
+            }
+            default:   success = false;  
+          }
+        } 
+      }
     }
 
-    server.on("/", []() {
-      bool success = true; 
-      DPRINTLN("Enter / handler"); 
+    if (success)
+    {        
+      server.send(200, "text/json", getHttpResponseString());
+    }
+    else 
+    {
+      DPRINTLN("/ handler: fail send 500"); 
 
-      for (uint8_t i = 0; i < server.args() && success; i++) 
-      {
-        String argName = server.argName(i);
-        String arg = server.arg(i);
+      server.send(500, "text/plain", "Failed to parse request.");
 
-        if (!handleHttpArg(argName, arg))
-        {
-          success = false;  
-        }
-        else
-        {
-          DPRINTLN("/ handler: parse bootloader"); 
+      DPRINTLN("/ handler: fail sent 500"); 
+    }
 
-          if (argName.equals("bootloader") && arg.length() == 1) 
-          {
-            switch(arg.charAt(0))
-            {
-              case 'A': 
-              {
-                rp2040.rebootToBootloader();  
-                break;
-              }
-              default:   success = false;  
-            }
-          }
+    DPRINTLN("Leave / handler"); 
+  });
 
-          DPRINTLN("/ handler: parse reboot"); 
-
-          if (argName.equals("reboot") && arg.length() == 1) 
-          {
-            switch(arg.charAt(0))
-            {
-              case 'A': 
-              { 
-                server.sendHeader("Location", "/");
-                server.send(302, "text/plain", "Redirecting...");
-                reboot(); 
-                break;
-              }
-              default:   success = false;  
-            }
-          } 
-        }
-      }
-
-      if (success)
-      {
-        DPRINTLN("/ handler: success, get lock"); 
-        
-        httpResponseStringReadInProgress = true; 
-        while(httpResponseStringModificationInProgress); 
-
-        server.send(200, "text/json", httpResponseString[0] ? (char *)httpResponseString : "{ 'status':\"Loading...\" }");
-
-        httpResponseStringReadInProgress = false; 
-
-        DPRINTLN("/ handler: success sent 200"); 
-      }
-      else 
-      {
-        DPRINTLN("/ handler: fail send 500"); 
-
-        server.send(500, "text/plain", "Failed to parse request.");
-
-        DPRINTLN("/ handler: fail sent 500"); 
-      }
-
-      DPRINTLN("Leave / handler"); 
-    });
-  }
+  NPRINTLN("Handler Initialized");
+#endif
 
   PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_mdnsUpdate); 
   PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_testWiFiConnection); 
   PICOW CORE_0_KERNEL->addImmediate(CORE_0_KERNEL, task_handleHttpClient); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOn, 1000); 
   PICOW CORE_0_KERNEL->add(CORE_0_KERNEL, task_testPing, PING_INTERVAL_MS); 
+  NPRINTLN("Calling aosSetup()"); 
   aosSetup(); 
+  NPRINTLN("aosSetup() Complete"); 
   CORE_0_KERNEL->add(CORE_0_KERNEL, task_core0ActOff, 1100); 
 
+  NPRINTLN("Core 0 Processes Initialized");
+
+#if defined(PICO_CYW43_SUPPORTED)
   server.onNotFound(handleHttpNotFound);
   server.begin();
   NPRINTLN("HTTP server started");
+#endif
 
-  //startWatchdogTimer(); 
-
+  NPRINTLN("Starting core 2"); 
   core2Start = 1; 
+}
+
+String getHttpResponseString()
+{
+  httpResponseStringReadInProgress = true; 
+        while(httpResponseStringModificationInProgress); 
+
+  String responseString = String(httpResponseString[0] ? (char *)httpResponseString : "{ 'status':\"Loading...\" }");
+
+  httpResponseStringReadInProgress = false; 
+
+  return responseString; 
 }
 
 void setup1()
 {
   while(!core2Start); 
-  PICOW CORE_1_KERNEL->addImmediate(CORE_1_KERNEL, task_updateHttpResponse);  
+  CORE_1_KERNEL->addImmediate(CORE_1_KERNEL, task_updateHttpResponse);  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOn, 1000); 
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_readTemperatures, TemperatureSensor::READ_INTERVAL_MS); 
   aosSetup1();  
   CORE_1_KERNEL->add(CORE_1_KERNEL, task_core1ActOff, 1100);
 }
 
-void startWatchdogTimer()
+/*void startWatchdogTimer()
 {
   //rp2040.wdt_begin(8300); 
   watchdogTimer = new RPI_PICO_TimerInterrupt(WATCHDOG_TIMER_IRQ); 
@@ -248,7 +271,7 @@ void startWatchdogTimer()
   {
     EPRINTLN("Can't set timer. Select another freq. or timer");
   }
-}
+}*/
 
 bool watchdogCallback(repeating_timer*)
 {
@@ -342,9 +365,11 @@ void setupFrontEnd(const char * htmlFilePath)
 
   Serial.println("Read FS"); 
 
+#if defined(PICO_CYW43_SUPPORTED)
   server.on("/index.html", []() {
     server.send(200, "text/html", indexHTML);
   });
+#endif
 }
 
 void readIndexHTML(const char * htmlFilePath)
@@ -377,9 +402,9 @@ void readIndexHTML(const char * htmlFilePath)
 
 void task_handleHttpClient()
 {
+#if defined(PICO_CYW43_SUPPORTED)
   server.handleClient(); 
-  // Won't boot without at least 10ms delay here. handleClient() has 
-  // a "_nulldelay" which is 1ms. It's weird, but apparently.
+#endif
   delay(1); 
 }
 
@@ -408,7 +433,9 @@ void task_updateHttpResponse()
 
   populateHttpResponse(document); 
   
+#if defined(PICO_CYW43_SUPPORTED)
   Ping::stats.addStats("ping", document); 
+#endif
   document["freeHeapB"] = getFreeHeap(); 
   addUptimeStats("uptime", document); 
 
@@ -442,21 +469,26 @@ void task_readTemperatures()
 
 void task_mdnsUpdate()
 {
+#if defined(PICO_CYW43_SUPPORTED)
   MDNS.update(); 
+#endif
 }
 
 void task_testWiFiConnection()
 {
+#if defined(PICO_CYW43_SUPPORTED)
   if (!is_wifi_connected()) 
   {
     WPRINTLN("Reboot from task_testWiFiConnection"); 
     numRebootsDisconnected++; 
     reboot();  
   }
+#endif
 }
 
 void task_testPing()
 {
+#if defined(PICO_CYW43_SUPPORTED)
   Ping ping = Ping::pingGateway(); 
 
   if (Ping::stats.getConsecutiveFailed() >= MAX_CONSECUTIVE_FAILED_PINGS)
@@ -465,10 +497,12 @@ void task_testPing()
     numRebootsPingFailed++; 
     reboot(); 
   }
+#endif
 }
 
 void handleHttpNotFound() 
 {
+#if defined(PICO_CYW43_SUPPORTED)
   String message = "File Not Found\n\n";
   message += "URI: ";
   message += server.uri();
@@ -484,15 +518,21 @@ void handleHttpNotFound()
   }
 
   server.send(404, "text/plain", message);
+#endif
 }
 
 bool is_wifi_connected() 
 {
+#if defined(PICO_CYW43_SUPPORTED)
   return WiFi.status() == WL_CONNECTED;
+#else
+  return false; 
+#endif
 }
 
 void wifi_connect() 
 {
+#if defined(PICO_CYW43_SUPPORTED)
   WiFi.noLowPowerMode();
   WiFi.mode(WIFI_STA);
   WiFi.noLowPowerMode();
@@ -526,6 +566,7 @@ void wifi_connect()
   DPRINTLN(".local");
 
   connectTime = millis();
+#endif
 }
 
 String getFotmattedRealTime()

@@ -86,7 +86,7 @@ void LCDPrint::reprintfLn(const char *format, ...)
   reprintLn(formatBuffer); 
 }
 
-void LCDPrint::reprintLn(char * formatBuffer)
+void LCDPrint::reprintLn(const char * formatBuffer)
 {
   printing = true; 
   while (refreshing); 
@@ -98,7 +98,7 @@ void LCDPrint::reprintLn(char * formatBuffer)
   printing = false; 
 }
 
-void LCDPrint::printLn(char * formatBuffer)
+void LCDPrint::printLn(const char * formatBuffer)
 {
   while (strlen(formatBuffer) > 0)
   {

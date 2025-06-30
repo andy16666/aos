@@ -22,17 +22,18 @@
  */
 #pragma once
 #include <Arduino.h> 
-#include <Arduino_CRC32.h>
 #include <RPi_Pico_TimerInterrupt.h>
 #include <aos.h>
 #include <map>
 #include <list>
+#include <functional>
 #include <util.h> 
 
 #define BC_RX_BUFFER_SIZE 4096
 #define BC_IRQ 1
 // Raw bits per second is roughly this. 
 #define BC_BAUD_RATE 5555.555
+//#define BC_BAUD_RATE 1024
 
 typedef enum {
   BC_STATE_NOTINIT, 

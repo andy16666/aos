@@ -68,6 +68,7 @@ namespace AOS
       static inline const unsigned long READ_INTERVAL_MS = 10000; 
 
       TemperatureSensor() {}; 
+      
       TemperatureSensor(const char* name, uint8_t shortAddress)
       {
         tempErrors = 0; 
@@ -259,9 +260,18 @@ namespace AOS
       }; 
       
       bool isTempValid(uint8_t a) { return has(a) && get(a).isTempValid(); };
+      
       float getTempC(uint8_t a) { return has(a) && get(a).isTempValid() ? get(a).getTempC() : 0; };
+      
       String formatTempC(uint8_t a) { return has(a) ? get(a).formatTempC() : String("-"); };
+      
       TemperatureSensor& get(uint8_t shortAddress) { return m[shortAddress]; };
+      
+      float operator[](uint8_t a) 
+      {
+        return getTempC(a); 
+      }; 
+
       bool has(uint8_t shortAddress) { return m.count(shortAddress); };
       
       void add(const char * name, const char * jsonName, uint8_t shortAddress) 

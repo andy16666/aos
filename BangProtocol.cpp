@@ -18,7 +18,7 @@ using namespace AOS;
 using AOS::BangChannel; 
 
 static std::list<std::function<void()>> BangProtocol_callbackTable; 
-static RPI_PICO_TimerInterrupt* BangProtocol_timer = 0;
+static RPI_PICO_TimerInterrupt BangProtocol_timer(BC_IRQ);
 
 bool BangProtocol_timerCallback(repeating_timer *t) 
 {
@@ -44,9 +44,9 @@ void BangChannel::begin()
     }
 
     pinMode(txPin, OUTPUT); 
-    pinMode(rxPin, INPUT); 
+    pinMode(rxPin, INPUT_PULLDOWN); 
     pinMode(txEnablePin, OUTPUT); 
-    pinMode(rxEnablePin, INPUT); 
+    pinMode(rxEnablePin, INPUT_PULLDOWN); 
 
     digitalWrite(txEnablePin, LOW); 
     digitalWrite(txPin, LOW); 
@@ -54,15 +54,19 @@ void BangChannel::begin()
     clearRXBuffer(); 
     clearTXBuffer(); 
 
+    DPRINTLN("Init Bang Callback"); 
+
     auto callbackFunction = std::mem_fn(&AOS::BangChannel::executeStateMachine);
     auto callback = std::bind(callbackFunction, this); 
     std::function<void()> callbackWrapper = callback;  
     BangProtocol_callbackTable.push_back(callbackWrapper); 
     
-    if (!BangProtocol_timer)
+    //if (!BangProtocol_timer)
     {
-      BangProtocol_timer = new RPI_PICO_TimerInterrupt(BC_IRQ); 
-      if (BangProtocol_timer->attachInterrupt(BC_BAUD_RATE, BangProtocol_timerCallback))
+      DPRINTLN("Start Bang Timer"); 
+      //BangProtocol_timer = ; 
+      DPRINTLN("Attach Bang Interrupt"); 
+      if (BangProtocol_timer.attachInterrupt(BC_BAUD_RATE, BangProtocol_timerCallback))
       {
         DPRINTLN("Starting timer OK, millis() = " + String(millis()));
       }
@@ -73,7 +77,10 @@ void BangChannel::begin()
     }
 
     goTo(BC_STATE_READY);
+
     initialized = true; 
+
+    DPRINTLN("Bang Started."); 
   } 
 }
 
@@ -353,7 +360,10 @@ bool BangChannel::put(String data)
     return false; 
   }
 
-  lockTxBuffer(); 
+  //lockTxBuffer(); 
+
+  if (txReady)
+    return false; 
 
   {
     int i;

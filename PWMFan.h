@@ -19,11 +19,13 @@
 
 namespace AOS
 {
+  class PWMFans; 
+  class PWMFan; 
+
   class PWMFan
   {
     private: 
       pin_size_t pin; 
-      pin_size_t onPin; 
       float state; 
       float command; 
       String jsonName; 
@@ -32,20 +34,20 @@ namespace AOS
       float maxSpeed; 
 
     public: 
-      PWMFan(const char *jsonName, pin_size_t onPin, pin_size_t pin, float offBelow, float minStart, float maxSpeed)
+      PWMFan() {}; 
+      PWMFan(const char *jsonName, pin_size_t pin, float offBelow, float minStart, float maxSpeed)
       {
         this->offBelow = offBelow; 
         this->minStart = minStart; 
         this->maxSpeed = maxSpeed; 
         this->pin = pin; 
-        this->onPin = onPin; 
         this->jsonName = String(jsonName); 
         this->state = 0; 
         this->command = 0; 
         pinMode(pin, OUTPUT); 
-        pinMode(onPin, OUTPUT);
       }; 
 
+      pin_size_t getPin() { return pin; }; 
       float getState() { return state; }; 
       float getCommand() { return command; }; 
 
@@ -63,7 +65,7 @@ namespace AOS
       
       bool isFanOff()
       {
-          return state < offBelow; 
+        return state < offBelow; 
       };
 
       void execute()
@@ -85,7 +87,6 @@ namespace AOS
           state = command; 
         }
         
-        digitalWrite(onPin, state >= offBelow ? HIGH : LOW); 
         analogWrite(pin, state >= offBelow ? state : 0.0); 
       };
 
@@ -93,8 +94,62 @@ namespace AOS
       {
         document[key][jsonName.c_str()]["command"] = command; 
         document[key][jsonName.c_str()]["state"] = state; 
-        document[key][jsonName.c_str()]["onPin"] = onPin; 
         document[key][jsonName.c_str()]["pin"] = pin; 
       }; 
   };
+
+  class PWMFans 
+  {
+    private:
+      std::map<pin_size_t, PWMFan> m;
+      float offBelow;
+      float minStart;
+
+    public: 
+      PWMFans() {}; 
+      PWMFans(float offBelow, float minStart)
+      {
+        this->offBelow = offBelow;
+        this->minStart = minStart;
+      }; 
+
+      void add(PWMFan& fan) { m.insert({fan.getPin(), fan}); };
+      
+      void add(const char *jsonName, pin_size_t pin); 
+
+      bool has(pin_size_t pin) { return m.count(pin); };
+      
+      PWMFan& get(pin_size_t pin) { return m[pin]; };
+
+      PWMFan& operator[](pin_size_t pin) 
+      {
+        return get(pin); 
+      }; 
+      
+      float getCommand(pin_size_t pin) { return has(pin) ? get(pin).getCommand() : 0; }; 
+
+      void setCommand(pin_size_t pin, float command) 
+      { 
+        if (has(pin))
+        {
+           get(pin).setCommand(command); 
+        }
+      }; 
+
+      void execute() 
+      {
+        for (auto &[k, f] : this->m)
+        {
+          f.execute(); 
+        }
+      }; 
+
+      void addTo(const char* key, JsonDocument& document) 
+      {
+        for (auto &[k, f] : this->m)
+        {
+          f.addTo(key, document); 
+        }
+      }; 
+  }; 
 }

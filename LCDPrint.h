@@ -27,6 +27,8 @@
 
 namespace AOS
 {
+	class LCDPrint; 
+
 	class LCDPrint
 	{
 		private: 
@@ -79,9 +81,9 @@ namespace AOS
 			}; 
 
 			void refresh(); 
-			void printLn(char * formatBuffer); 
+			void printLn(const char * formatBuffer); 
 			void printfLn(const char *format, ...);
-			void reprintLn(char * formatBuffer);  
+			void reprintLn(const char * formatBuffer);  
 			void reprintfLn(const char *format, ...); 
 	}; 
 }

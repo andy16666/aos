@@ -108,6 +108,19 @@ namespace AOS
         }
       };
 
+      bool isSet()
+      {
+        for (auto &[pN, p] : this->m)
+        {
+          if(!p.isSet())
+          {
+            return false; 
+          }
+        }
+
+        return true; 
+      }; 
+
       void init()
       {
         for (auto &[pN, p] : this->m)
@@ -118,7 +131,7 @@ namespace AOS
             delay(500);
           }
         }
-      }
+      };
 
       void addTo(JsonDocument& document) 
       {
@@ -126,7 +139,7 @@ namespace AOS
         {
           s.addTo(document); 
         }
-      }
+      };
 
       void addTo(const char* key, JsonDocument& document) 
       {
@@ -134,10 +147,15 @@ namespace AOS
         {
           s.addTo(key, document); 
         }
-      }
+      };
 
       bool has(const pin_size_t p);
       GPIOOutput& get(const pin_size_t pin);
+      GPIOOutput& operator[](const pin_size_t pin)
+      {
+        return get(pin); 
+      }; 
+
       std::string getName() const;
       
   };

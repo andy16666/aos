@@ -24,14 +24,17 @@
 #ifndef AOS_H
 #define AOS_H
 #include <Arduino.h>
+#include <RPi_Pico_TimerInterrupt.h>
 #include <OneWire.h>
 #include <ArduinoJson.h>
+#include <CPU.h>
+#if defined(PICO_CYW43_SUPPORTED)
 #include <HTTPClient.h>
 #include <WiFi.h>
 #include <WiFiClient.h>
-#include <CPU.h>
 #include <LEAmDNS.h>
-
+#include "Ping.h"
+#endif
 #include <sys/_intsup.h>
 #include <cstdlib>
 #include <stdint.h> 
@@ -40,11 +43,9 @@
 #include <string.h>
 
 #include "TemperatureSensors.h"
-#include "Ping.h"
+
 
 #define TEMP_SENSOR_PIN 2
-#define CORE_0_ACT   LED_BUILTIN
-#define CORE_1_ACT   19
 #define PING_INTERVAL_MS 15000
 #define MAX_CONSECUTIVE_FAILED_PINGS 5
 #define AOS_WATCHDOG_TIMEOUT_MS 30000
@@ -80,6 +81,15 @@
 
 #define PICOW if (rp2040.isPicoW())
 
+#if defined(PICO_CYW43_SUPPORTED)
+#define CORE_0_ACT   LED_BUILTIN
+#define CORE_1_ACT   1
+#else 
+#define CORE_0_ACT   25 
+#define CORE_1_ACT   1
+#endif
+
+
 extern "C" {
 #include <threadkernel.h>
 };
@@ -88,15 +98,11 @@ extern AOS::TemperatureSensors TEMPERATURES;
 extern CPU cpu; 
 extern volatile char* httpResponseString; 
 
-extern volatile unsigned long            tempErrors             ;
-
 volatile inline unsigned long startupTime = millis();
 volatile inline unsigned long connectTime = millis();
 
 extern threadkernel_t* CORE_0_KERNEL; 
 extern threadkernel_t* CORE_1_KERNEL;
-
-//extern const char* hostname; 
 
 static void task_testPing(); 
 static void task_mdnsUpdate(); 
@@ -134,6 +140,7 @@ void aosSetup1();
 
 void populateHttpResponse(JsonDocument &document);  
 bool handleHttpArg(String argName, String arg); 
+String getHttpResponseString(); 
 void setupFrontEnd(const char * htmlFilePath);
 
 uint32_t getTotalHeap();
