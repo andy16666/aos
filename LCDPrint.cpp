@@ -33,9 +33,9 @@ void LCDPrint::scroll()
   for (int i = 0; i < LCD_ROWS; i++)
   {
       if (!i) 
-      free(lcdRaster[i]); 
+        free(lcdRaster[i]); 
       else 
-      lcdRaster[i-1] = lcdRaster[i]; 
+        lcdRaster[i-1] = lcdRaster[i]; 
   }
   lcdRaster[LCD_ROWS - 1] = (char *)malloc(sizeof(char) * (LCD_COLS + 1));
 }
@@ -52,14 +52,14 @@ void LCDPrint::refresh()
     return; 
   }
 
-  rasterDirty = 0; 
   for (int row = 0; row < LCD_ROWS; row++)
   {
       lcd.setCursor(0, row); 
       lcd.print(lcdRaster[row]); 
   }
 
-  printing = false; 
+  rasterDirty = false; 
+  refreshing = false; 
 }
 
 void LCDPrint::printfLn(const char *format, ...)
