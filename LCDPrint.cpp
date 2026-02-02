@@ -30,14 +30,15 @@ bool LCDPrint::testAddress(uint8_t addr)
 
 void LCDPrint::scroll()
 {
-  for (int i = 0; i < LCD_ROWS; i++)
+  for (int i = 0; i < rows; i++)
   {
       if (!i) 
         free(lcdRaster[i]); 
       else 
         lcdRaster[i-1] = lcdRaster[i]; 
   }
-  lcdRaster[LCD_ROWS - 1] = (char *)malloc(sizeof(char) * (LCD_COLS + 1));
+  size_t lineLength = sizeof(char) * (columns + 1); 
+  lcdRaster[rows - 1] = (char *)calloc(lineLength, lineLength);
 }
 
 void LCDPrint::refresh()
@@ -52,7 +53,7 @@ void LCDPrint::refresh()
     return; 
   }
 
-  for (int row = 0; row < LCD_ROWS; row++)
+  for (int row = 0; row < rows; row++)
   {
       lcd.setCursor(0, row); 
       lcd.print(lcdRaster[row]); 
@@ -91,8 +92,8 @@ void LCDPrint::reprintLn(const char * formatBuffer)
   printing = true; 
   while (refreshing); 
 
-  lcdRaster[LCD_ROWS - 1][0] = 0; 
-  sprintf(lcdRaster[LCD_ROWS - 1], "%-*.*s", LCD_COLS, LCD_COLS, formatBuffer);
+  lcdRaster[rows - 1][0] = 0; 
+  sprintf(lcdRaster[rows - 1], "%-*.*s", columns, columns, formatBuffer);
   rasterDirty = true; 
 
   printing = false; 
@@ -106,14 +107,14 @@ void LCDPrint::printLn(const char * formatBuffer)
     while (refreshing); 
 
     scroll(); 
-    if (strlen(formatBuffer) >= LCD_COLS)
+    if (strlen(formatBuffer) >= columns)
     {
-      strncpy(lcdRaster[LCD_ROWS - 1], formatBuffer, LCD_COLS);
-      formatBuffer += LCD_COLS; 
+      strncpy(lcdRaster[rows - 1], formatBuffer, columns);
+      formatBuffer += columns; 
     }
     else 
     {
-      sprintf(lcdRaster[LCD_ROWS - 1], "%-*.*s", LCD_COLS, LCD_COLS, formatBuffer);
+      sprintf(lcdRaster[rows - 1], "%-*.*s", columns, columns, formatBuffer);
       formatBuffer += strlen(formatBuffer); 
     }
     rasterDirty = true; 

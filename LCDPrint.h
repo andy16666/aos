@@ -18,9 +18,9 @@
 #include <Wire.h>
 
 //#define LCD_ADDRESS 0x27
-#define LCD_ADDRESS 0x3F
-#define LCD_COLS    16
-#define LCD_ROWS     2
+//#define LCD_ADDRESS 0x3F
+//#define LCD_COLS    16
+//#define LCD_ROWS     2
 
 #define STR_(X) #X
 #define STR(X) STR_(X)
@@ -44,26 +44,38 @@ namespace AOS
 			void scroll(); 
 			bool testAddress(uint8_t addr); 
 
+			uint8_t address; 
+			uint8_t columns; 
+			uint8_t rows; 
+
 		public: 
-			LCDPrint() : lcd(LCD_ADDRESS, LCD_COLS, LCD_ROWS) 
+			LCDPrint() : LCDPrint(0x3F, 16, 2) { }; 
+
+			LCDPrint(uint8_t address, uint8_t columns, uint8_t rows) : lcd(address, columns, rows) 
 			{
 				rasterDirty = false; 
 				printing = false; 
 				refreshing = false; 
-				lcdConnected = false; 
+				lcdConnected = false;
 
-				lcdRaster = (char **)malloc(sizeof(char*) * LCD_ROWS); 
+				this->address = address; 
+				this->columns = columns;  
+				this->rows = rows; 
 
-				for (int i = 0; i < LCD_ROWS; i++)
+				lcdRaster = (char **)malloc(sizeof(char*) * rows); 
+
+				size_t lineSize = sizeof(char) * (columns + 1); 
+
+				for (int i = 0; i < rows; i++)
 				{
-					lcdRaster[i] = (char *)malloc(sizeof(char) * (LCD_COLS + 1));
-					sprintf(lcdRaster[i], "%-*ls", LCD_COLS, "...");
+					lcdRaster[i] = (char *)calloc(lineSize, lineSize);
+					sprintf(lcdRaster[i], "%-*ls", columns, "...");
 				}
 			}; 
 
 			void init()
 			{
-				if (testAddress(LCD_ADDRESS))
+				if (testAddress(address))
 				{
 					lcdConnected = true; 
 					lcd.init();           // LCD driver initialization

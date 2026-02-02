@@ -87,7 +87,7 @@ namespace AOS
           state = command; 
         }
         
-        analogWrite(pin, state >= offBelow ? state : 0.0); 
+        analogWrite(pin, (int)(((state >= offBelow ? state : 0.0)/100.0) * 255.0)); 
       };
 
       void addTo(const char * key, JsonDocument& document)
