@@ -34,7 +34,9 @@ bool TemperatureSensor::readTemp(DS18B20& ds)
     return false; 
   }
 
+  previousTempC = tempC; 
   tempC = ds.getTempC(); 
+  previousReadMs = lastReadMs; 
   lastReadMs = millis(); 
   read = true; 
   return true;

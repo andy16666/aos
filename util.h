@@ -32,6 +32,14 @@
 
 #include <Arduino.h>
 
+uint8_t extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax);
+float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment);
+float computeGradientC(float sourceTempC, float targetTempC, float toleranceC);
+float clampf(float value, float min, float max);
+int clampi(int value, int min, int max);
+void pryApart(volatile float* pwm1, volatile float* pwm2, float minDifference, float minValue, float maxValue);
+
+
 double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
 double calculate_relative_humidity(double td, double tw);
 String msToHumanReadableTime(long timeMs); 

@@ -26,6 +26,7 @@ namespace AOS
   {
     private: 
       pin_size_t pin; 
+      bool  activeLow; 
       float state; 
       float command; 
       String jsonName; 
@@ -35,16 +36,21 @@ namespace AOS
 
     public: 
       PWMFan() {}; 
-      PWMFan(const char *jsonName, pin_size_t pin, float offBelow, float minStart, float maxSpeed)
+      PWMFan(const char *jsonName, pin_size_t pin, float offBelow, float minStart, float maxSpeed) 
+        : PWMFan(jsonName, pin, false, offBelow, minStart, maxSpeed) { }; 
+
+      PWMFan(const char *jsonName, pin_size_t pin, bool  activeLow, float offBelow, float minStart, float maxSpeed)
       {
         this->offBelow = offBelow; 
         this->minStart = minStart; 
         this->maxSpeed = maxSpeed; 
         this->pin = pin; 
+        this->activeLow = activeLow; 
         this->jsonName = String(jsonName); 
         this->state = 0; 
         this->command = 0; 
         pinMode(pin, OUTPUT); 
+        analogWrite(pin, activeLow ? 255 : 0); 
       }; 
 
       pin_size_t getPin() { return pin; }; 
@@ -86,8 +92,10 @@ namespace AOS
         {
           state = command; 
         }
+
+        int pinValue = (int)(((state >= offBelow ? state : 0.0)/100.0) * 255.0); 
         
-        analogWrite(pin, (int)(((state >= offBelow ? state : 0.0)/100.0) * 255.0)); 
+        analogWrite(pin, activeLow ? 255-pinValue : pinValue); 
       };
 
       void addTo(const char * key, JsonDocument& document)
@@ -116,6 +124,8 @@ namespace AOS
       void add(PWMFan& fan) { m.insert({fan.getPin(), fan}); };
       
       void add(const char *jsonName, pin_size_t pin); 
+
+      void add(const char *jsonName, pin_size_t pin, bool activeLow); 
 
       bool has(pin_size_t pin) { return m.count(pin); };
       

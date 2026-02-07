@@ -60,45 +60,45 @@ namespace AOS
       String name;
       String jsonName;
       float tempC;
+      float previousTempC; 
       bool read;
       unsigned long lastReadMs;
+      unsigned long previousReadMs; 
       unsigned int tempErrors; 
 
     public:
-      static inline const unsigned long READ_INTERVAL_MS = 10000; 
+      static inline const unsigned long READ_INTERVAL_MS = 1000; 
 
-      TemperatureSensor() {}; 
-      
-      TemperatureSensor(const char* name, uint8_t shortAddress)
+      TemperatureSensor() 
       {
         tempErrors = 0; 
+        previousTempC = 0; 
+        read = false; 
+        lastReadMs = 0; 
+        previousReadMs = 0; 
+      }; 
+      
+      TemperatureSensor(const char* name, uint8_t shortAddress) : TemperatureSensor()
+      {
         this->name = String(name); 
         this->jsonName = String(name) + String(shortAddress); 
         this->shortAddress = shortAddress; 
         for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = 0; }
-        read = false; 
-        lastReadMs = 0; 
       }; 
 
-      TemperatureSensor(const char* name, const char* jsonName, uint8_t shortAddress)
+      TemperatureSensor(const char* name, const char* jsonName, uint8_t shortAddress) : TemperatureSensor()
       {
-        tempErrors = 0; 
         this->name = String(name); 
         this->jsonName = String(jsonName); 
         this->shortAddress = shortAddress; 
         for (int i = 0; i < ADDRESS_LENGTH; i++) { this->address[i] = 0; }
-        read = false; 
-        lastReadMs = 0; 
       }; 
       
-      TemperatureSensor(uint8_t address[ADDRESS_LENGTH])
+      TemperatureSensor(uint8_t address[ADDRESS_LENGTH]) : TemperatureSensor()
       {
-        tempErrors = 0; 
         setAddress(address); 
         this->name = "Discovered"; 
         this->jsonName = String(this->name) + String(shortAddress); 
-        read = false; 
-        lastReadMs = 0; 
       }; 
 
       String getName()
@@ -117,6 +117,23 @@ namespace AOS
       {
         return !read || lastReadMs < (millis() - TEMP_EXPIRY_TIME_MS);  
       };
+
+      double getAgeSeconds()
+      {
+        return (millis() - lastReadMs) / 1E3;
+      }
+
+      double getRateOfChangeDegreesPerSecond()
+      {
+        // Rollover or init
+        if (lastReadMs <= previousReadMs) 
+          return 0; 
+
+        double intervalSeconds = (lastReadMs - previousReadMs) / 1E3; 
+        double deltat = tempC - previousTempC; 
+
+        return deltat / intervalSeconds; 
+      }
 
       float getTempC() { return tempC; }; 
       
@@ -201,14 +218,6 @@ namespace AOS
       uint8_t pin; 
       DS18B20 ds; 
       bool discovered; 
-
-    public: 
-      TemperatureSensors(uint8_t pin) : ds(pin) 
-      { 
-        this->pin = pin; 
-        discovered = false;
-      }; 
-
       void discoverSensors();
       
       bool areDiscovered()
@@ -231,6 +240,14 @@ namespace AOS
         }
       }
 
+    public: 
+      TemperatureSensors(uint8_t pin) : ds(pin) 
+      { 
+        this->pin = pin; 
+        discovered = false;
+        ds.setResolution(RES_12_BIT); 
+      }; 
+
       void readSensors() 
       {  
         if (!areDiscovered())
@@ -238,14 +255,15 @@ namespace AOS
           discoverSensors(); 
         }
 
-        ds.doConversion(); 
         for (auto &[sA, s] : this->m)
         {
-          if (s.hasAddress() && (!s.isRead() || s.isTempExpired()))
+          if (s.hasAddress())
           {
             s.readTemp(ds); 
           }
         }
+
+        ds.doConversion(); 
       }; 
 
       unsigned int getTempErrors()

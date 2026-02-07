@@ -15,6 +15,99 @@
 
 #include "util.h"
 
+
+uint8_t extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax)
+{
+  if (gapC >= rangeC)
+    return pwmMax; 
+  
+  if (gapC < minGapC)  
+      return 0; 
+
+  float powerLevel = (gapC - minGapC) / (rangeC - minGapC); 
+
+  return (powerLevel * (pwmMax - pwmMin)) + pwmMin;
+}
+
+float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment)
+{
+  float up   = lastPwm + fabs(maxAdjustment); 
+  float down = lastPwm - fabs(maxAdjustment); 
+  float max = up < pwmMin ? pwmMin : (up < pwmMax ? up : pwmMax);
+  float min = down < pwmMin ? 0 : down; 
+
+  float result = extrapolatePWM(gapC, rangeC, minGapC, pwmMin, pwmMax);
+
+  return clampf(result, min, max);
+}
+
+
+float computeGradientC(float sourceTempC, float targetTempC, float toleranceC)
+{ 
+  float availableGradientC = sourceTempC - targetTempC; 
+  float availableAmountC = fabs(availableGradientC);
+
+  return (availableAmountC > toleranceC) ? availableAmountC : 0.0; 
+}
+
+float clampf(float value, float min, float max)
+{
+  if (value > max)
+    return max; 
+  if (value < min)
+    return min; 
+  
+  return value; 
+}
+
+int clampi(int value, int min, int max)
+{
+  if (value > max)
+    return max; 
+  if (value < min)
+    return min; 
+  
+  return value; 
+}
+
+/*
+  Move the two fan speeds apart so that they don't make an interference pattern
+*/ 
+void pryApart(volatile float* pwm1, volatile float* pwm2, float minDifference, float minValue, float maxValue)
+{
+  // If one is off, we don't care. 
+  if (!*pwm1 || !*pwm2)
+    return; 
+
+  float differenceAbs = fabs(*pwm1 - *pwm2);
+
+  if (differenceAbs <= minDifference)
+  {
+    float targetDifference = minDifference - differenceAbs;
+    float direction = (*pwm1 >= *pwm2) ? 1 : -1; 
+
+    *pwm1 += direction * targetDifference/2.0;
+    *pwm2 -= direction * targetDifference/2.0; 
+    
+    if (fmax(*pwm1, *pwm2) > maxValue)
+    {
+      float decrease = fmax(*pwm1, *pwm2) - maxValue; 
+
+      *pwm1 -= decrease;
+      *pwm2 -= decrease; 
+    }
+
+    if (fmin(*pwm1, *pwm2) < minValue)
+    {
+      float increase = minValue - fmin(*pwm1, *pwm2); 
+
+      *pwm1 += increase;
+      *pwm2 += increase; 
+    }
+  }
+}
+
+
 double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity) {
     double rh = relative_humidity;
     double T = dry_bulb_temp;
