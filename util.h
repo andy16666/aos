@@ -29,6 +29,10 @@
 #include <stdlib.h>
 #include <stdint.h> 
 #include <math.h> 
+#include <iostream>
+#include <string>
+#include <initializer_list>
+#include <algorithm>
 
 #include <Arduino.h>
 
@@ -37,8 +41,10 @@ float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMi
 float computeGradientC(float sourceTempC, float targetTempC, float toleranceC);
 float clampf(float value, float min, float max);
 int clampi(int value, int min, int max);
-void pryApart(volatile float* pwm1, volatile float* pwm2, float minDifference, float minValue, float maxValue);
 
+float fmaxv(std::initializer_list<float> values );
+
+void pryApart(volatile float* pwm1, volatile float* pwm2, float minDifference, float minValue, float maxValue);
 
 double calculate_wet_bulb_temp(double dry_bulb_temp, double relative_humidity);
 double calculate_relative_humidity(double td, double tw);

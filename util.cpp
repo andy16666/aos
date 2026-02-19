@@ -70,6 +70,11 @@ int clampi(int value, int min, int max)
   return value; 
 }
 
+float fmaxv(std::initializer_list<float> values)
+{
+  return std::max(values); 
+} 
+
 /*
   Move the two fan speeds apart so that they don't make an interference pattern
 */ 

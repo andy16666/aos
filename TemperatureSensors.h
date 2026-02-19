@@ -218,8 +218,8 @@ namespace AOS
       uint8_t pin; 
       DS18B20 ds; 
       bool discovered; 
+
       void discoverSensors();
-      
       bool areDiscovered()
       {
         if (!this->discovered)
@@ -232,7 +232,8 @@ namespace AOS
             }
           }
 
-          return true; 
+          // If there are no sensors registered, report false to force discoverty
+          return m.size() > 0; 
         }
         else 
         {
@@ -248,11 +249,20 @@ namespace AOS
         ds.setResolution(RES_12_BIT); 
       }; 
 
+      void forceDiscovery()
+      {  
+        discoverSensors(); 
+      }; 
+
       void readSensors() 
       {  
         if (!areDiscovered())
         {
-          discoverSensors(); 
+          forceDiscovery(); 
+        }
+        else 
+        {
+          this->discovered = true; 
         }
 
         for (auto &[sA, s] : this->m)

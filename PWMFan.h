@@ -68,6 +68,23 @@ namespace AOS
             ? maxSpeed 
             : command); 
       };
+
+      void setSuggestion(float suggestion)
+      {
+        if (this->command == suggestion)
+          return; 
+
+        float command = (this->command + suggestion) / 2.0; 
+
+        if (this->command < offBelow && command >= offBelow)
+        {
+          setCommand(offBelow);  
+        }
+        else 
+        {
+          setCommand(command); 
+        }
+      }
       
       bool isFanOff()
       {
