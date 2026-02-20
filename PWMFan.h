@@ -71,18 +71,32 @@ namespace AOS
 
       void setSuggestion(float suggestion)
       {
+        setSuggestion(suggestion, 1.0, 0.5); 
+      }
+
+      void setSuggestion(float suggestion, float weight, float tolerance)
+      {
         if (this->command == suggestion)
           return; 
 
-        float command = (this->command + suggestion) / 2.0; 
+        float diff = fabs(this->command - suggestion);  
 
-        if (this->command < offBelow && command >= offBelow)
+        if (diff <= tolerance) 
         {
-          setCommand(offBelow);  
+          setCommand(suggestion); 
         }
         else 
         {
-          setCommand(command); 
+          float command = (this->command + (suggestion * weight)) / (1.0 + weight);
+
+          if (this->command < offBelow && command >= offBelow)
+          {
+            setCommand(offBelow);  
+          }
+          else 
+          {
+            setCommand(command); 
+          }
         }
       }
       
