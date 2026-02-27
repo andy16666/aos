@@ -55,16 +55,10 @@ void BangChannel::begin()
     clearTXBuffer(); 
 
     DPRINTLN("Init Bang Callback"); 
-
-    auto callbackFunction = std::mem_fn(&AOS::BangChannel::executeStateMachine);
-    auto callback = std::bind(callbackFunction, this); 
-    std::function<void()> callbackWrapper = callback;  
-    BangProtocol_callbackTable.push_back(callbackWrapper); 
     
-    //if (!BangProtocol_timer)
+    if (BangProtocol_callbackTable.size() == 0)
     {
       DPRINTLN("Start Bang Timer"); 
-      //BangProtocol_timer = ; 
       DPRINTLN("Attach Bang Interrupt"); 
       if (BangProtocol_timer.attachInterrupt(BC_BAUD_RATE, BangProtocol_timerCallback))
       {
@@ -75,6 +69,11 @@ void BangChannel::begin()
         EPRINTLN("Can't set timer. Select another freq. or timer");
       }
     }
+
+    auto callbackFunction = std::mem_fn(&AOS::BangChannel::executeStateMachine);
+    auto callback = std::bind(callbackFunction, this); 
+    std::function<void()> callbackWrapper = callback;  
+    BangProtocol_callbackTable.push_back(callbackWrapper); 
 
     goTo(BC_STATE_READY);
 

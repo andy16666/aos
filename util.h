@@ -38,6 +38,10 @@
 
 uint8_t extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax);
 float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment);
+
+float calculateBlowerAdjustedPwm(float pwm, float min, float max, bool blowerOn, float margin);
+float shiftPwmRange(float pwm, float min, float max, float newMin, float newMax);
+
 float computeGradientC(float sourceTempC, float targetTempC, float toleranceC);
 float clampf(float value, float min, float max);
 int clampi(int value, int min, int max);

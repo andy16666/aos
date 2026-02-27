@@ -41,6 +41,39 @@ float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMi
   return clampf(result, min, max);
 }
 
+float calculateBlowerAdjustedPwm(float pwm, float min, float max, bool blowerOn, float margin)
+{
+  if (pwm < min)
+    return 0; 
+
+  if (pwm > max)
+    return max;  
+
+  if (margin <= 0)
+    return pwm; 
+
+  float adjustedPwm = ((pwm-min) * (1.0 + (margin/(max-min)))) + min; 
+
+  float newPwm = blowerOn ? adjustedPwm - margin : adjustedPwm; 
+
+  if (newPwm < min)
+    return 0; 
+
+  return clampf(newPwm, min, max); 
+}
+
+float shiftPwmRange(float pwm, float min, float max, float newMin, float newMax)
+{
+  if (pwm < min)
+    return 0;
+
+  if (pwm >= max)
+    return newMax; 
+
+  float normalized = (pwm - min) / (max - min); 
+  
+  return (normalized * (newMax - newMin)) + newMin; 
+}
 
 float computeGradientC(float sourceTempC, float targetTempC, float toleranceC)
 { 
