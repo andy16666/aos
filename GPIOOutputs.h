@@ -14,10 +14,11 @@
  */
 
 /*
-    Simplifies operations controlling inductive loads using GPIO. 
+  A management class and collection class which simplifies operations 
+  controlling inductive loads via relays using GPIO. 
 
-    Author: Andrew Somerville <andy16666@gmail.com> 
-    GitHub: andy16666
+  Author: Andrew Somerville <andy16666@gmail.com> 
+  GitHub: andy16666
  */
 #pragma once
 #include <sys/_intsup.h>

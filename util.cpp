@@ -15,18 +15,36 @@
 
 #include "util.h"
 
+float extrapolatePWM
+(
+  bool enable, 
+  float gapC, 
+  float rangeC, 
+  float minGapC, 
+  float pwmMin, 
+  float pwmMax, 
+  PIDController& pidController
+)
+{ 
+  if (enable)
+  { 
+    return extrapolatePWM(pidController.addAndGetError(gapC), rangeC, minGapC, pwmMin, pwmMax);
+  }
+  else 
+  {
+    pidController.reset(); 
+    return 0; 
+  }
+}
 
-uint8_t extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax)
+float extrapolatePWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax)
 {
-  if (gapC >= rangeC)
-    return pwmMax; 
-  
-  if (gapC < minGapC)  
-      return 0; 
+  return enable ? extrapolatePWM(gapC, rangeC, minGapC, pwmMin, pwmMax) : 0.0;
+}
 
-  float powerLevel = (gapC - minGapC) / (rangeC - minGapC); 
-
-  return (powerLevel * (pwmMax - pwmMin)) + pwmMin;
+float extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax)
+{
+  return denormalizePwm(normalizePwm(gapC, minGapC, rangeC), pwmMin, pwmMax);
 }
 
 float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment)
@@ -39,6 +57,35 @@ float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMi
   float result = extrapolatePWM(gapC, rangeC, minGapC, pwmMin, pwmMax);
 
   return clampf(result, min, max);
+}
+
+float extrapolateGradualPWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment)
+{
+  return enable ? extrapolateGradualPWM(gapC, rangeC, minGapC, pwmMin, pwmMax, lastPwm, maxAdjustment) : 0.0; 
+}
+
+float extrapolateGradualPWM
+(
+  bool enable, 
+  float gapC, 
+  float rangeC, 
+  float minGapC, 
+  float pwmMin, 
+  float pwmMax, 
+  float lastPwm, 
+  float maxAdjustment, 
+  PIDController& pidController
+)
+{
+  if (enable)
+  { 
+    return extrapolateGradualPWM(pidController.addAndGetError(gapC), rangeC, minGapC, pwmMin, pwmMax, lastPwm, maxAdjustment);
+  }
+  else 
+  {
+    pidController.reset(); 
+    return 0; 
+  }
 }
 
 float calculateBlowerAdjustedPwm(float pwm, float min, float max, bool blowerOn, float margin)
@@ -63,16 +110,24 @@ float calculateBlowerAdjustedPwm(float pwm, float min, float max, bool blowerOn,
 }
 
 float shiftPwmRange(float pwm, float min, float max, float newMin, float newMax)
+{  
+  return denormalizePwm(normalizePwm(pwm, min, max), newMin, newMax); 
+}
+
+float normalizePwm(float pwm, float min, float max) 
 {
-  if (pwm < min)
-    return 0;
+  return (pwm - min) / (max - min); 
+}
 
-  if (pwm >= max)
-    return newMax; 
+float denormalizePwm(float normalized, float min, float max)
+{ 
+  if (normalized < 0.0f)
+    return 0; 
 
-  float normalized = (pwm - min) / (max - min); 
-  
-  return (normalized * (newMax - newMin)) + newMin; 
+  if (normalized > 1.0f)
+    return max; 
+
+  return (normalized * (max - min)) + min; 
 }
 
 float computeGradientC(float sourceTempC, float targetTempC, float toleranceC)

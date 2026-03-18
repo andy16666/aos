@@ -12,6 +12,14 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+
+/*
+  A PWM fan controller which includes a collection class for managing 
+  multiple PWM fan outputs. 
+
+  Author: Andrew Somerville <andy16666@gmail.com> 
+  GitHub: andy16666
+*/
 #pragma once
 #include <Arduino.h> 
 #include <ArduinoJson.h>

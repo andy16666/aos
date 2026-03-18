@@ -13,7 +13,6 @@
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
 
-
 /*
     Utilities for coding on the Pi Pico. 
 
@@ -33,14 +32,22 @@
 #include <string>
 #include <initializer_list>
 #include <algorithm>
-
 #include <Arduino.h>
+#include <PIDController.h>
 
-uint8_t extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax);
+using namespace AOS; 
+
+float extrapolatePWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax);
+float extrapolatePWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax);
+float extrapolatePWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, PIDController& pidController);
 float extrapolateGradualPWM(float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment);
+float extrapolateGradualPWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment);
+float extrapolateGradualPWM(bool enable, float gapC, float rangeC, float minGapC, float pwmMin, float pwmMax, float lastPwm, float maxAdjustment, PIDController& pidController);
 
 float calculateBlowerAdjustedPwm(float pwm, float min, float max, bool blowerOn, float margin);
 float shiftPwmRange(float pwm, float min, float max, float newMin, float newMax);
+float normalizePwm(float pwm, float min, float max); 
+float denormalizePwm(float normalized, float min, float max); 
 
 float computeGradientC(float sourceTempC, float targetTempC, float toleranceC);
 float clampf(float value, float min, float max);

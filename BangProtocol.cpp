@@ -12,6 +12,12 @@
  * You should have received a copy of the GNU General Public License along 
  * with this program. If not, see <https://www.gnu.org/licenses/>.
  */
+/*
+  A 4-wire low speed digital protocol used to communicate between MCUs. 
+
+  Author: Andrew Somerville <andy16666@gmail.com> 
+  GitHub: andy16666
+ */
 #include "BangProtocol.h"
 
 using namespace AOS; 
